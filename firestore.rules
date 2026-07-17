@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /deliveries/{deliveryId} {
+      // 기사 앱(index.html)과 관리자 로그인 상태 모두 create/update 가능 (기존 동작 유지)
+      allow create, update: if request.auth != null;
+
+      // list(쿼리) 읽기:
+      //  - 관리자(ADMIN_EMAIL로 로그인)는 전체 기간 조회 가능 (30일 통계용)
+      //  - 그 외 인증된 클라이언트(기사 앱의 익명 세션 포함)는 최근 24시간 이내
+      //    생성된 문서만 조회 가능 — 오늘 등록 목록을 보여주는 데는 충분하고,
+      //    30일치 range 쿼리는 이 조건을 통과하지 못해 전체 요청이 거부됨.
+      allow list: if request.auth != null &&
+        (
+          request.auth.token.email == "admin@yourproject.local"
+          || resource.data.createdAt > request.time - duration.value(1, 'd')
+        );
+    }
+  }
+}
