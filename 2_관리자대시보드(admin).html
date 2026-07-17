@@ -52,6 +52,23 @@ body{
   padding:12px 14px; font-size:12.5px; margin-top:14px; line-height:1.6;
 }
 
+.form-card{
+  background:var(--white); border:1.5px solid var(--line); border-radius:14px; padding:16px;
+  margin-top:16px;
+}
+.form-card h2{font-size:14.5px; font-weight:700; color:var(--green); margin:0 0 12px;}
+.field{margin-bottom:14px;}
+.field label{display:block; font-size:11px; color:var(--gray); font-weight:700; margin-bottom:6px;}
+.field input{
+  width:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:8px;
+  font-size:14px; font-family:'Noto Sans KR',sans-serif; background:var(--white); color:var(--ink);
+}
+.save-btn{
+  width:100%; padding:14px 0; border:none; border-radius:12px; background:var(--amber); color:#fff;
+  font-weight:700; font-size:15px; cursor:pointer; margin-top:2px;
+}
+.save-btn:disabled{background:var(--paper-2); color:var(--gray); cursor:not-allowed;}
+
 .stat-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:16px;}
 .stat{border-radius:10px; padding:14px;}
 .stat.neutral{background:var(--white); border:1px solid var(--line);}
@@ -123,6 +140,9 @@ const firebaseConfig = {
   appId: "YOUR_APP_ID"
 };
 const COLLECTION = "deliveries";
+// 관리자 로그인 계정 식별자 (비밀 아님 — 비밀번호는 Firebase 콘솔에서만 설정됨).
+// firestore.rules의 ADMIN_EMAIL 값과 반드시 동일해야 함.
+const ADMIN_EMAIL = "admin@yourproject.local";
 /* ============================================================= */
 
 const METRO = ["광화문점","이화여대교내서점","인천점","일산점","합정점","송도점","건대스타시티점","은평점","청량리점","동대문점","수유점","강남점","서울대교내서점","잠실점","영등포점","판교점","목동점","광교점","평촌점","천호점","분당점","가든파이브점","원그로브점","수원점"];
@@ -171,19 +191,50 @@ let unsubStats = null;
 let dashboardEntries = [];   // 오늘 등록 건
 let statsEntries = [];       // 최근 30일 등록 건 (완료된 것만 소요시간 계산에 사용)
 let selectedDateIdx = 0;     // stats 페이지 날짜 선택 (0 = 오늘)
+let authUser = null;         // 로그인한 Firebase Auth 사용자 (관리자)
+let authError = null;        // 로그인 실패 메시지
+let loggingIn = false;       // 로그인 요청 진행 중 여부
 
 async function initFirebase(){
   try{
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
-    await firebase.auth().signInAnonymously();
-    subscribeDashboard();
+    firebase.auth().onAuthStateChanged((user) => {
+      authUser = user;
+      live = !!user;
+      if(user){
+        subscribeDashboard();
+      }else{
+        if(unsubDashboard){ unsubDashboard(); unsubDashboard = null; }
+        if(unsubStats){ unsubStats(); unsubStats = null; }
+        statsSubscribing = false;
+        dashboardEntries = [];
+        statsEntries = [];
+        view = "dashboard";
+      }
+      render();
+    });
   }catch(e){
     console.error("Firebase 초기화 실패", e);
     loadError = "Firebase 연결에 실패했습니다. firebaseConfig 값이 올바른지 확인해 주세요. (" + (e && e.message ? e.message : e) + ")";
     live = false;
     render();
   }
+}
+
+async function login(password){
+  loggingIn = true; authError = null; render();
+  try{
+    await firebase.auth().signInWithEmailAndPassword(ADMIN_EMAIL, password);
+  }catch(e){
+    console.error("로그인 실패", e);
+    authError = "비밀번호가 올바르지 않습니다.";
+  }
+  loggingIn = false; render();
+}
+
+async function logout(){
+  await firebase.auth().signOut();
 }
 
 function subscribeDashboard(){
@@ -248,8 +299,30 @@ function findEntry(store){
 /* ---------------- 렌더 ---------------- */
 function render(){
   const app = document.getElementById("app");
-  app.innerHTML = view === "dashboard" ? renderDashboard() : renderStats();
+  app.innerHTML = !authUser ? renderLogin() : (view === "dashboard" ? renderDashboard() : renderStats());
   wire();
+}
+
+function renderLogin(){
+  return `
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="brand">
+          <div class="eyebrow">${TODAY}</div>
+          <div class="title">배송 관리자 대시보드</div>
+        </div>
+      </div>
+    </div>
+    ${authError ? `<div class="err-banner">${authError}</div>` : ""}
+    <form class="form-card" id="loginForm">
+      <h2>관리자 로그인</h2>
+      <div class="field">
+        <label>비밀번호</label>
+        <input type="password" id="adminPassword" placeholder="비밀번호 입력" required>
+      </div>
+      <button type="submit" class="save-btn" ${loggingIn ? "disabled" : ""}>${loggingIn ? "로그인 중..." : "로그인"}</button>
+    </form>
+  `;
 }
 
 function renderDashboard(){
@@ -269,7 +342,10 @@ function renderDashboard(){
           <div class="eyebrow">${TODAY}</div>
           <div class="title">배송 관리자 대시보드</div>
         </div>
-        <button class="chip-btn" id="statsBtn">${iconChart(14)}소요시간 통계</button>
+        <div style="display:flex; gap:8px;">
+          <button class="chip-btn" id="statsBtn">${iconChart(14)}소요시간 통계</button>
+          <button class="chip-btn outline" id="logoutBtn">로그아웃</button>
+        </div>
       </div>
       <div class="live-label ${live ? "" : "off"}"><span class="live-dot ${live ? "" : "off"}"></span>${live ? "실시간 동기화 중" : "연결 안 됨"}</div>
     </div>
@@ -343,7 +419,10 @@ function renderStats(){
           <div class="eyebrow">지점별 소요시간</div>
           <div class="title">운송 소요시간 통계</div>
         </div>
-        <button class="chip-btn outline" id="backBtn">← 대시보드로</button>
+        <div style="display:flex; gap:8px;">
+          <button class="chip-btn outline" id="backBtn">← 대시보드로</button>
+          <button class="chip-btn outline" id="logoutBtn">로그아웃</button>
+        </div>
       </div>
       <div class="live-label ${live ? "" : "off"}"><span class="live-dot ${live ? "" : "off"}"></span>${live ? "실시간 동기화 중" : "연결 안 됨"}</div>
     </div>
@@ -434,6 +513,18 @@ function wire(){
       selectedDateIdx = Number(e.target.value);
       render();
     });
+  }
+  const loginForm = document.getElementById("loginForm");
+  if(loginForm){
+    loginForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const pw = document.getElementById("adminPassword").value;
+      if(pw) login(pw);
+    });
+  }
+  const logoutBtn = document.getElementById("logoutBtn");
+  if(logoutBtn){
+    logoutBtn.addEventListener("click", () => { logout(); });
   }
 }
 
