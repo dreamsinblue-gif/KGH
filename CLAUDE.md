@@ -25,6 +25,8 @@ To run either app, just open the `.html` file in a browser (or serve the directo
 
 **Firebase config is a placeholder.** Both files ship with `firebaseConfig` containing `YOUR_API_KEY` etc. — a real Firebase project's config must be pasted into both files identically before either app functions (see 향후 계획 in the plan doc).
 
+**Admin access requires manual one-time setup.** admin.html gates the dashboard behind `firebase.auth().signInWithEmailAndPassword()` using the `ADMIN_EMAIL` constant defined in admin.html. Two manual steps in the Firebase Console are required before this works, neither of which is scripted in this repo: (1) create that exact email/password user under Authentication → Users, and (2) paste [`firestore.rules`](firestore.rules)'s contents into Firestore Database → Rules. `ADMIN_EMAIL` in admin.html and the email hardcoded in `firestore.rules` must match exactly.
+
 **Render pattern.** Both apps use a manual `render()` that rebuilds `#app` innerHTML from module-level state, followed by a `wire()` call to reattach event listeners — no virtual DOM/diffing. Any state mutation must be followed by calling `render()`.
 
 **Realtime subscriptions.** Firestore `onSnapshot` listeners drive re-renders on remote changes (`subscribeToday` in index.html; `subscribeDashboard` and `subscribeStats` in admin.html). admin.html's stats view fetches the full 30-day window once (`statsSubscribing` guard prevents re-subscribing) and recomputes date comparisons client-side on selection change, rather than re-querying.
