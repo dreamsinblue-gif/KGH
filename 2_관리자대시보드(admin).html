@@ -302,6 +302,28 @@ function findEntry(store){
   return dashboardEntries.find(e => e.store === store) || null;
 }
 
+function elapsedMinutes(entry){
+  if(!entry.startAt) return null;
+  const endTime = entry.endAt || new Date();
+  return minutesBetween(entry.startAt, endTime);
+}
+
+function expectedMinutes(store, region){
+  const completed = region === "지방"
+    ? statsEntries.filter(e => e.region === "지방" && e.startAt && e.endAt)
+    : statsEntries.filter(e => e.store === store && e.startAt && e.endAt);
+  if(!completed.length) return null;
+  return Math.round(completed.reduce((sum, e) => sum + minutesBetween(e.startAt, e.endAt), 0) / completed.length);
+}
+
+function isDelayed(entry){
+  const elapsed = elapsedMinutes(entry);
+  if(elapsed === null) return null;
+  const expected = expectedMinutes(entry.store, entry.region);
+  if(expected === null) return null;
+  return (elapsed - expected) >= 15;
+}
+
 /* ---------------- 렌더 ---------------- */
 function render(){
   const app = document.getElementById("app");
