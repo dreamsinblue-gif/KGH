@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>배송 관리자 대시보드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --ink:#22261F; --paper:#F1EDE2; --paper-2:#E7E1D0; --green:#1F4D3A; --green-light:#3C6E56;
+  --amber:#C97A2B; --red:#B23B3B; --sage:#7C9482; --white:#FBFAF6; --line:#D8D0BC; --gray:#8A8672;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Noto Sans KR',sans-serif; background:var(--paper); color:var(--ink);
+  min-height:100vh; padding-bottom:48px;
+}
+.app{max-width:960px; margin:0 auto; padding:0 20px;}
+
+.topbar{
+  position:sticky; top:0; z-index:20; background:var(--paper); padding:16px 0 12px;
+  border-bottom:1px solid var(--line);
+}
+.topbar-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.brand .eyebrow{font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--green-light); letter-spacing:.08em;}
+.brand .title{font-weight:900; font-size:20px; color:var(--green);}
+.chip-btn{
+  font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:700; color:var(--white);
+  background:var(--green); padding:8px 14px; border-radius:20px; border:none; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px;
+}
+.chip-btn.outline{background:var(--white); color:var(--green); border:1.5px solid var(--green);}
+.live-dot{
+  display:inline-block; width:7px; height:7px; border-radius:50%; background:#8FE0B0;
+  margin-right:6px; box-shadow:0 0 0 0 rgba(143,224,176,.6); animation:livepulse 1.8s infinite;
+}
+.live-dot.off{background:var(--red); animation:none;}
+@keyframes livepulse{
+  0%{box-shadow:0 0 0 0 rgba(143,224,176,.55);}
+  100%{box-shadow:0 0 0 7px rgba(143,224,176,0);}
+}
+.live-label{font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--green-light); display:flex; align-items:center; margin-top:8px;}
+.live-label.off{color:var(--red);}
+
+.err-banner{
+  background:#FBEAEA; border:1.5px solid var(--red); color:#7A2626; border-radius:10px;
+  padding:12px 14px; font-size:12.5px; margin-top:14px; line-height:1.6;
+}
+
+.stat-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:16px;}
+.stat{border-radius:10px; padding:14px;}
+.stat.neutral{background:var(--white); border:1px solid var(--line);}
+.stat.going{background:#FBEEDD;}
+.stat.done{background:#E4EEE7;}
+.stat .l{font-size:12px; color:var(--gray);}
+.stat.going .l{color:#7A5A08;}
+.stat.done .l{color:var(--green);}
+.stat .n{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:22px; margin-top:4px;}
+.stat.going .n{color:#7A5A08;}
+.stat.done .n{color:var(--green);}
+
+.legend-row{display:flex; gap:16px; margin:14px 0 10px; font-size:12px; color:var(--gray); align-items:center;}
+.legend-row .dot{width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:5px;}
+
+.region-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;}
+@media (max-width:720px){ .region-grid{grid-template-columns:1fr;} }
+.region-card{background:var(--white); border:1px solid var(--line); border-radius:12px; padding:16px 18px;}
+.region-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.region-head .name{font-size:15px; font-weight:700; color:var(--ink);}
+.region-head .ratio{font-size:12px; color:var(--gray); font-family:'JetBrains Mono',monospace;}
+.row-head{display:grid; grid-template-columns:20px 1fr 40px 40px; font-size:11px; color:var(--gray); padding:0 0 6px; border-bottom:1px solid var(--line); align-items:center;}
+.row{display:grid; grid-template-columns:20px 1fr 40px 40px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);}
+.row:last-child{border-bottom:none;}
+.status-dot{width:9px; height:9px; border-radius:50%; flex:none;}
+.status-dot.wait{background:var(--line);}
+.status-dot.going{background:var(--amber);}
+.status-dot.done{background:var(--green);}
+.row .name{font-size:13px;}
+.row .time{font-size:12px; font-family:'JetBrains Mono',monospace; color:var(--gray);}
+.row .time.done{color:var(--green); font-weight:700;}
+.row .time.going{color:var(--amber); font-weight:700;}
+
+/* ---------- stats page ---------- */
+.field-row{display:flex; align-items:center; gap:10px; margin-top:18px;}
+.field-row label{font-size:13px; color:var(--gray);}
+.field-row select{
+  padding:8px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:13px;
+  background:var(--white); color:var(--ink); font-family:'Noto Sans KR',sans-serif;
+}
+.stats-note{font-size:12px; color:var(--red); font-weight:700; margin:6px 0 16px;}
+.stats-row-head{display:grid; grid-template-columns:1fr 56px 56px 56px; font-size:11px; color:var(--gray); padding:0 0 6px; border-bottom:1px solid var(--line);}
+.stats-row{display:grid; grid-template-columns:1fr 56px 56px 56px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line);}
+.stats-row:last-child{border-bottom:none;}
+.stats-row .name{font-size:13px;}
+.stats-row .avg{font-size:12px; color:var(--gray); font-family:'JetBrains Mono',monospace;}
+.stats-row .day{font-size:12px; color:var(--ink); font-family:'JetBrains Mono',monospace;}
+.stats-row .delta{font-size:12px; font-weight:700; font-family:'JetBrains Mono',monospace;}
+.delta.up{color:var(--red);}
+.delta.down{color:var(--green);}
+.delta.flat{color:var(--gray);}
+
+.empty{text-align:center; padding:40px 0; color:var(--gray); font-size:13px;}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+/* ====================== Firebase 설정 ======================
+   index.html(기사 앱)과 같은 Firebase 프로젝트의 설정값을 그대로 넣어주세요.
+================================================================ */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+const COLLECTION = "deliveries";
+/* ============================================================= */
+
+const METRO = ["광화문점","이화여대교내서점","인천점","일산점","합정점","송도점","건대스타시티점","은평점","청량리점","동대문점","수유점","강남점","서울대교내서점","잠실점","영등포점","판교점","목동점","광교점","평촌점","천호점","분당점","가든파이브점","원그로브점","수원점"];
+const RURAL = ["대구점","천안점","부산점","창원점","울산점","대전점","센텀시티점","세종점","전주점","경성대부경대점","칠곡점","광주상무점"];
+const ALL_STORES = METRO.concat(RURAL);
+
+function iconStart(size){
+  size = size || 14;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="8" width="13" height="8"></rect><path d="M14 11h4l3 3v2h-7z"></path><circle cx="6" cy="18" r="1.8"></circle><circle cx="17.5" cy="18" r="1.8"></circle></svg>`;
+}
+function iconDone(size){
+  size = size || 14;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.5 2.5L16 9.5"></path></svg>`;
+}
+function iconWarehouse(size){
+  size = size || 14;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-5 9 5v12"></path><path d="M3 21h18"></path><path d="M9 21v-6h6v6"></path></svg>`;
+}
+function iconChart(size){
+  size = size || 16;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><rect x="7" y="12" width="3" height="6"></rect><rect x="12" y="8" width="3" height="10"></rect><rect x="17" y="5" width="3" height="13"></rect></svg>`;
+}
+
+function todayKey(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function dateKeyOffset(n){
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function fmtTime(date){
+  return String(date.getHours()).padStart(2,"0") + ":" + String(date.getMinutes()).padStart(2,"0");
+}
+const TODAY = todayKey();
+
+let view = "dashboard"; // "dashboard" | "stats"
+let live = false;
+let loadError = null;
+
+/* ---------------- Firebase ---------------- */
+let db = null;
+let unsubDashboard = null;
+let unsubStats = null;
+let dashboardEntries = [];   // 오늘 등록 건
+let statsEntries = [];       // 최근 30일 등록 건 (완료된 것만 소요시간 계산에 사용)
+let selectedDateIdx = 0;     // stats 페이지 날짜 선택 (0 = 오늘)
+
+async function initFirebase(){
+  try{
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    await firebase.auth().signInAnonymously();
+    subscribeDashboard();
+  }catch(e){
+    console.error("Firebase 초기화 실패", e);
+    loadError = "Firebase 연결에 실패했습니다. firebaseConfig 값이 올바른지 확인해 주세요. (" + (e && e.message ? e.message : e) + ")";
+    live = false;
+    render();
+  }
+}
+
+function subscribeDashboard(){
+  if(unsubDashboard) unsubDashboard();
+  unsubDashboard = db.collection(COLLECTION)
+    .where("date", "==", TODAY)
+    .onSnapshot(
+      (snapshot) => {
+        dashboardEntries = snapshot.docs.map(doc => {
+          const d = doc.data();
+          return {
+            id: doc.id, store: d.store, region: d.region,
+            startAt: d.startAt ? d.startAt.toDate() : null,
+            endAt: d.endAt ? d.endAt.toDate() : null
+          };
+        });
+        loadError = null; live = true;
+        render();
+      },
+      (err) => {
+        console.error("대시보드 구독 오류", err);
+        loadError = "실시간 연결이 끊어졌습니다. 잠시 후 자동으로 재시도합니다. (" + err.message + ")";
+        live = false;
+        render();
+      }
+    );
+}
+
+let statsSubscribing = false;
+function subscribeStats(){
+  if(statsSubscribing || unsubStats) return; // 이미 구독했거나 구독 중이면 재사용
+  statsSubscribing = true;
+  const cutoff = dateKeyOffset(29); // 최근 30일(오늘 포함)
+  unsubStats = db.collection(COLLECTION)
+    .where("date", ">=", cutoff)
+    .onSnapshot(
+      (snapshot) => {
+        statsEntries = snapshot.docs.map(doc => {
+          const d = doc.data();
+          return {
+            store: d.store, region: d.region, date: d.date,
+            startAt: d.startAt ? d.startAt.toDate() : null,
+            endAt: d.endAt ? d.endAt.toDate() : null
+          };
+        });
+        loadError = null; live = true;
+        render();
+      },
+      (err) => {
+        console.error("통계 구독 오류", err);
+        loadError = "실시간 연결이 끊어졌습니다. (" + err.message + ")";
+        live = false;
+        render();
+      }
+    );
+}
+
+function findEntry(store){
+  return dashboardEntries.find(e => e.store === store) || null;
+}
+
+/* ---------------- 렌더 ---------------- */
+function render(){
+  const app = document.getElementById("app");
+  app.innerHTML = view === "dashboard" ? renderDashboard() : renderStats();
+  wire();
+}
+
+function renderDashboard(){
+  const total = ALL_STORES.length;
+  let waitCount = 0, goingCount = 0, doneCount = 0;
+  ALL_STORES.forEach(name => {
+    const e = findEntry(name);
+    if(!e) waitCount++;
+    else if(e.endAt) doneCount++;
+    else goingCount++;
+  });
+
+  return `
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="brand">
+          <div class="eyebrow">${TODAY}</div>
+          <div class="title">배송 관리자 대시보드</div>
+        </div>
+        <button class="chip-btn" id="statsBtn">${iconChart(14)}소요시간 통계</button>
+      </div>
+      <div class="live-label ${live ? "" : "off"}"><span class="live-dot ${live ? "" : "off"}"></span>${live ? "실시간 동기화 중" : "연결 안 됨"}</div>
+    </div>
+
+    ${loadError ? `<div class="err-banner">${loadError}</div>` : ""}
+
+    <div class="stat-grid">
+      <div class="stat neutral"><div class="l">전체 지점</div><div class="n">${total}</div></div>
+      <div class="stat neutral"><div class="l">대기</div><div class="n">${waitCount}</div></div>
+      <div class="stat going"><div class="l">운송중</div><div class="n">${goingCount}</div></div>
+      <div class="stat done"><div class="l">완료</div><div class="n">${doneCount}</div></div>
+    </div>
+
+    <div class="legend-row">
+      <span><span class="dot" style="background:var(--line);"></span>대기</span>
+      <span><span class="dot" style="background:var(--amber);"></span>운송중</span>
+      <span><span class="dot" style="background:var(--green);"></span>완료</span>
+    </div>
+
+    <div class="region-grid">
+      ${regionCard("수도권", METRO, false)}
+      ${regionCard("지방", RURAL, true)}
+    </div>
+  `;
+}
+
+function regionCard(label, storeList, isRural){
+  const doneN = storeList.filter(n => { const e = findEntry(n); return e && e.endAt; }).length;
+  return `
+    <div class="region-card">
+      <div class="region-head">
+        <span class="name">${label}</span>
+        <span class="ratio">${doneN} / ${storeList.length} 완료</span>
+      </div>
+      <div class="row-head">
+        <span></span><span>지점</span>
+        ${iconStart(14)}
+        ${isRural ? iconWarehouse(14) : iconDone(14)}
+      </div>
+      ${storeList.map(name => {
+        const e = findEntry(name);
+        const status = !e ? "wait" : (e.endAt ? "done" : "going");
+        const startTxt = e && e.startAt ? fmtTime(e.startAt) : "--:--";
+        const endTxt = e && e.endAt ? fmtTime(e.endAt) : "--:--";
+        return `
+          <div class="row">
+            <span class="status-dot ${status}"></span>
+            <span class="name">${name}</span>
+            <span class="time ${status === "wait" ? "" : "going"}">${startTxt}</span>
+            <span class="time ${status === "done" ? "done" : ""}">${endTxt}</span>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderStats(){
+  subscribeStats();
+
+  const dateOptions = [];
+  for(let i = 0; i < 30; i++){
+    dateOptions.push(dateKeyOffset(i));
+  }
+  const selectedDate = dateOptions[selectedDateIdx];
+
+  return `
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="brand">
+          <div class="eyebrow">지점별 소요시간</div>
+          <div class="title">운송 소요시간 통계</div>
+        </div>
+        <button class="chip-btn outline" id="backBtn">← 대시보드로</button>
+      </div>
+      <div class="live-label ${live ? "" : "off"}"><span class="live-dot ${live ? "" : "off"}"></span>${live ? "실시간 동기화 중" : "연결 안 됨"}</div>
+    </div>
+
+    ${loadError ? `<div class="err-banner">${loadError}</div>` : ""}
+
+    <div class="field-row">
+      <label for="dateSel">조회일</label>
+      <select id="dateSel">
+        ${dateOptions.map((d, i) => `<option value="${i}" ${i === selectedDateIdx ? "selected" : ""}>${d}${i === 0 ? " (오늘)" : ""}</option>`).join("")}
+      </select>
+    </div>
+    <div class="stats-note">*월평균은 최근 1개월을 기준으로 함</div>
+
+    <div class="region-grid">
+      ${statsCard("수도권", METRO, selectedDate)}
+      ${statsCard("지방", RURAL, selectedDate)}
+    </div>
+  `;
+}
+
+function minutesBetween(a, b){
+  return Math.round((b.getTime() - a.getTime()) / 60000);
+}
+
+function storeStats(name, selectedDate){
+  const completedAll = statsEntries.filter(e => e.store === name && e.startAt && e.endAt);
+  const monthly = completedAll.length
+    ? Math.round(completedAll.reduce((sum, e) => sum + minutesBetween(e.startAt, e.endAt), 0) / completedAll.length)
+    : null;
+
+  const dayEntries = completedAll.filter(e => e.date === selectedDate);
+  const dayAvg = dayEntries.length
+    ? Math.round(dayEntries.reduce((sum, e) => sum + minutesBetween(e.startAt, e.endAt), 0) / dayEntries.length)
+    : null;
+
+  return { monthly, dayAvg };
+}
+
+function statsCard(label, storeList, selectedDate){
+  return `
+    <div class="region-card">
+      <div class="region-head"><span class="name">${label}</span></div>
+      <div class="stats-row-head">
+        <span>지점</span><span>월평균</span><span>조회일</span><span>증감</span>
+      </div>
+      ${storeList.map(name => {
+        const { monthly, dayAvg } = storeStats(name, selectedDate);
+        const monthlyTxt = monthly === null ? "-" : monthly + "분";
+        const dayTxt = dayAvg === null ? "-" : dayAvg + "분";
+        let deltaTxt = "-", deltaClass = "flat";
+        if(monthly !== null && dayAvg !== null){
+          const delta = dayAvg - monthly;
+          deltaClass = delta > 5 ? "up" : (delta < -5 ? "down" : "flat");
+          deltaTxt = (delta >= 0 ? "+" : "") + delta + "분";
+        }
+        return `
+          <div class="stats-row">
+            <span class="name">${name}</span>
+            <span class="avg">${monthlyTxt}</span>
+            <span class="day">${dayTxt}</span>
+            <span class="delta ${deltaClass}">${deltaTxt}</span>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function wire(){
+  const statsBtn = document.getElementById("statsBtn");
+  if(statsBtn){
+    statsBtn.addEventListener("click", () => {
+      view = "stats";
+      render();
+    });
+  }
+  const backBtn = document.getElementById("backBtn");
+  if(backBtn){
+    backBtn.addEventListener("click", () => {
+      view = "dashboard";
+      render();
+    });
+  }
+  const dateSel = document.getElementById("dateSel");
+  if(dateSel){
+    dateSel.addEventListener("change", (e) => {
+      selectedDateIdx = Number(e.target.value);
+      render();
+    });
+  }
+}
+
+(function init(){
+  document.getElementById("app").innerHTML = `<div class="empty">연결하는 중...</div>`;
+  initFirebase();
+})();
+</script>
+</body>
+</html>

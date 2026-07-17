@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>운송기사 배송 입력</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --ink:#22261F; --paper:#F1EDE2; --paper-2:#E7E1D0; --green:#1F4D3A; --green-light:#3C6E56;
+  --amber:#C97A2B; --red:#B23B3B; --sage:#7C9482; --white:#FBFAF6; --line:#D8D0BC; --gray:#8A8672;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Noto Sans KR',sans-serif; background:var(--paper); color:var(--ink);
+  min-height:100vh; padding-bottom:40px;
+}
+.app{max-width:520px; margin:0 auto; padding:0 14px;}
+@media (min-width:760px){ .app{max-width:640px;} }
+
+.topbar{
+  position:sticky; top:0; z-index:20; background:var(--paper); padding:14px 0 10px;
+  border-bottom:1px solid var(--line);
+}
+.topbar-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.brand .eyebrow{font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--green-light); letter-spacing:.08em;}
+.brand .title{font-weight:900; font-size:19px; color:var(--green);}
+.chip-btn{
+  font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:700; color:var(--white);
+  background:var(--green); padding:7px 13px; border-radius:20px; border:none; cursor:pointer;
+}
+.chip-btn.outline{background:var(--white); color:var(--green); border:1.5px solid var(--green);}
+.live-dot{
+  display:inline-block; width:7px; height:7px; border-radius:50%; background:#8FE0B0;
+  margin-right:6px; box-shadow:0 0 0 0 rgba(143,224,176,.6); animation:livepulse 1.8s infinite;
+}
+.live-dot.off{background:var(--red); animation:none;}
+@keyframes livepulse{
+  0%{box-shadow:0 0 0 0 rgba(143,224,176,.55);}
+  100%{box-shadow:0 0 0 7px rgba(143,224,176,0);}
+}
+.live-label{font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--green-light); display:flex; align-items:center; margin-top:6px;}
+.live-label.off{color:var(--red);}
+
+.date-big{font-family:'JetBrains Mono',monospace; font-weight:700; font-size:26px; color:var(--green); letter-spacing:.02em;}
+.date-sub{font-size:12px; color:var(--gray); margin-top:2px;}
+.radio-row{display:flex; gap:20px;}
+.radio-option{display:flex; align-items:center; gap:9px; cursor:pointer;}
+.radio-circle{
+  width:20px; height:20px; border-radius:50%; border:2px solid var(--line); flex:none;
+  display:flex; align-items:center; justify-content:center; background:var(--white);
+}
+.radio-circle.checked{border-color:var(--green);}
+.radio-circle.checked::after{content:''; width:10px; height:10px; border-radius:50%; background:var(--green);}
+.radio-label{font-size:14.5px; font-weight:700; color:var(--ink);}
+.step-label{font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--gray); margin-bottom:2px;}
+.store-grid{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:5px;
+}
+.store-chip{
+  padding:6px 2px; text-align:center; border-radius:7px; border:1.5px solid var(--line);
+  background:var(--paper); font-size:12.5px; font-weight:700; color:var(--ink); cursor:pointer;
+  font-family:'Noto Sans KR',sans-serif; line-height:1.2;
+}
+.store-chip.active{background:var(--green); border-color:var(--green); color:#fff;}
+.sel-count{font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--amber); font-weight:700; margin-left:6px;}
+.selectall-chip{
+  display:block; width:100%; padding:8px 12px; margin-bottom:6px; text-align:center;
+}
+.selectall-note{color:var(--red); font-size:11px; font-weight:700; margin:0 0 12px; line-height:1.5;}
+.confirm-head{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+.confirm-count{font-size:15px; font-weight:900; color:var(--ink);}
+.confirm-chips{display:flex; flex-wrap:wrap; gap:6px;}
+.confirm-chip{
+  font-size:11.5px; font-weight:700; background:var(--white); border:1px solid var(--line);
+  border-radius:8px; padding:4px 8px; color:var(--ink);
+}
+
+.form-card{
+  background:var(--white); border:1.5px solid var(--line); border-radius:14px; padding:16px;
+  margin-top:16px;
+}
+.form-card h2{font-size:14.5px; font-weight:700; color:var(--green); margin:0 0 12px;}
+.field{margin-bottom:14px;}
+.field label{display:block; font-size:11px; color:var(--gray); font-weight:700; margin-bottom:6px;}
+.confirm-box{
+  display:flex; align-items:center; gap:10px; background:var(--paper); border:1.5px solid var(--line);
+  border-radius:10px; padding:16px; margin-bottom:16px;
+}
+.confirm-box-list{flex-direction:column; align-items:stretch;}
+.confirm-store{font-size:17px; font-weight:900; color:var(--ink);}
+.save-btn{
+  width:100%; padding:14px 0; border:none; border-radius:12px; background:var(--amber); color:#fff;
+  font-weight:700; font-size:15px; cursor:pointer; margin-top:2px;
+}
+.save-btn:disabled{background:var(--paper-2); color:var(--gray); cursor:not-allowed;}
+.list{margin-top:16px; display:flex; flex-direction:column; gap:10px;}
+.card{background:var(--white); border:1.5px solid var(--line); border-radius:14px; padding:14px;}
+.card.done{border-color:var(--green-light);}
+.card-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+.ct-left{display:flex; align-items:center; gap:8px; min-width:0;}
+.status-dot{width:10px; height:10px; border-radius:50%; flex:none;}
+.status-dot.going{background:var(--amber);}
+.status-dot.done{background:var(--green);}
+.ct-name{font-weight:700; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.badge{font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:10px; flex:none;}
+.badge.direct{background:#E4EEE7; color:var(--green);}
+.badge.hub{background:#FBEEDD; color:var(--amber);}
+.btn svg{vertical-align:-2px; margin-right:5px;}
+
+.flow-row{display:flex; align-items:center; margin-top:12px;}
+.flow-side{display:flex; flex-direction:column; align-items:center; gap:4px; width:84px;}
+.flow-side.pending{opacity:.4;}
+.flow-side .flow-icon{color:var(--green);}
+.flow-side.pending .flow-icon{color:var(--gray);}
+.flow-side .flow-label{font-size:11px; font-weight:700; color:var(--ink);}
+.flow-side .flow-time{font-family:'JetBrains Mono',monospace; font-size:12.5px; font-weight:700; color:var(--ink);}
+.flow-connector{flex:1; height:2px; background:repeating-linear-gradient(90deg, var(--sage) 0 6px, transparent 6px 10px); position:relative; margin:0 4px;}
+.flow-connector::after{
+  content:''; position:absolute; right:-1px; top:50%; transform:translateY(-50%);
+  width:0; height:0; border-top:5px solid transparent; border-bottom:5px solid transparent; border-left:7px solid var(--sage);
+}
+.action-row{display:flex; gap:8px; margin-top:12px;}
+.btn{flex:1; padding:10px 0; border-radius:9px; border:none; font-weight:700; font-size:13px; cursor:pointer; font-family:'Noto Sans KR',sans-serif;}
+.btn.primary{background:var(--green); color:#fff;}
+.btn.primary:disabled{background:var(--paper-2); color:var(--gray); cursor:not-allowed;}
+.btn.ghost{background:var(--white); border:1.5px solid var(--red); color:var(--red);}
+.btn.secondary{background:var(--white); border:1.5px solid var(--line); color:var(--ink);}
+.empty{text-align:center; padding:40px 0; color:var(--gray); font-size:13px;}
+.status-line{font-size:11px; color:var(--gray); text-align:center; margin-top:18px; font-family:'JetBrains Mono',monospace;}
+.err-banner{
+  background:#FBEAEA; border:1.5px solid var(--red); color:#7A2626; border-radius:10px;
+  padding:12px 14px; font-size:12.5px; margin-top:14px; line-height:1.6;
+}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+/* ====================== Firebase 설정 (직접 채워주세요) ======================
+   Firebase 콘솔 > 프로젝트 설정 > 일반 > 내 앱(웹 앱) > SDK 설정 및 구성 에서 복사
+================================================================================ */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+const COLLECTION = "deliveries";
+/* ============================================================================ */
+
+const STORE_DEFS = [
+  {name:"광화문점", region:"수도권"}, {name:"이화여대교내서점", region:"수도권"},
+  {name:"인천점", region:"수도권"}, {name:"일산점", region:"수도권"},
+  {name:"합정점", region:"수도권"}, {name:"송도점", region:"수도권"},
+  {name:"건대스타시티점", region:"수도권"}, {name:"은평점", region:"수도권"},
+  {name:"청량리점", region:"수도권"}, {name:"동대문점", region:"수도권"},
+  {name:"수유점", region:"수도권"}, {name:"강남점", region:"수도권"},
+  {name:"서울대교내서점", region:"수도권"}, {name:"잠실점", region:"수도권"},
+  {name:"영등포점", region:"수도권"}, {name:"판교점", region:"수도권"},
+  {name:"목동점", region:"수도권"}, {name:"광교점", region:"수도권"},
+  {name:"평촌점", region:"수도권"}, {name:"천호점", region:"수도권"},
+  {name:"분당점", region:"수도권"}, {name:"가든파이브점", region:"수도권"},
+  {name:"원그로브점", region:"수도권"}, {name:"수원점", region:"수도권"},
+  {name:"대구점", region:"지방"}, {name:"천안점", region:"지방"},
+  {name:"부산점", region:"지방"}, {name:"창원점", region:"지방"},
+  {name:"울산점", region:"지방"}, {name:"대전점", region:"지방"},
+  {name:"센텀시티점", region:"지방"}, {name:"세종점", region:"지방"},
+  {name:"전주점", region:"지방"}, {name:"경성대부경대점", region:"지방"},
+  {name:"칠곡점", region:"지방"}, {name:"광주상무점", region:"지방"}
+];
+const REGIONS = ["수도권","지방"];
+
+function storeByName(name){ return STORE_DEFS.find(s => s.name === name); }
+
+function iconStart(size){
+  size = size || 13;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="8" width="13" height="8"></rect><path d="M14 11h4l3 3v2h-7z"></path><circle cx="6" cy="18" r="1.8"></circle><circle cx="17.5" cy="18" r="1.8"></circle></svg>`;
+}
+function iconDone(size){
+  size = size || 13;
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8 12.5l2.5 2.5L16 9.5"></path></svg>`;
+}
+
+function todayKey(){
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+function fmtTime(date){
+  return String(date.getHours()).padStart(2,"0") + ":" + String(date.getMinutes()).padStart(2,"0");
+}
+const DATE = todayKey();
+
+let entries = [];
+let form = { region: "수도권", stores: [] };
+let step = 1;
+let saving = false;
+let completingIds = new Set();
+let loadError = null;
+let live = false;
+
+/* ---------------- Firebase 초기화 + 실시간 구독 ---------------- */
+let db = null;
+let unsubscribe = null;
+
+async function initFirebase(){
+  try{
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    await firebase.auth().signInAnonymously();
+    subscribeToday();
+  }catch(e){
+    console.error("Firebase 초기화 실패", e);
+    loadError = "Firebase 연결에 실패했습니다. firebaseConfig 값이 올바른지 확인해 주세요. (" + (e && e.message ? e.message : e) + ")";
+    live = false;
+    render();
+  }
+}
+
+function subscribeToday(){
+  if(unsubscribe) unsubscribe();
+  unsubscribe = db.collection(COLLECTION)
+    .where("date", "==", DATE)
+    .onSnapshot(
+      (snapshot) => {
+        entries = snapshot.docs.map(doc => {
+          const d = doc.data();
+          return {
+            id: doc.id,
+            store: d.store,
+            region: d.region,
+            startAt: d.startAt ? fmtTime(d.startAt.toDate()) : "",
+            endAt: d.endAt ? fmtTime(d.endAt.toDate()) : "",
+            _sortMs: d.createdAt ? d.createdAt.toMillis() : 0
+          };
+        }).sort((a,b) => a._sortMs - b._sortMs);
+        loadError = null;
+        live = true;
+        render();
+      },
+      (err) => {
+        console.error("실시간 구독 오류", err);
+        loadError = "실시간 연결이 끊어졌습니다. 잠시 후 자동으로 재시도합니다. (" + err.message + ")";
+        live = false;
+        render();
+      }
+    );
+}
+
+async function createEntryFirestore(store, region){
+  await db.collection(COLLECTION).add({
+    store, region, date: DATE,
+    startAt: firebase.firestore.Timestamp.now(),
+    endAt: null,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  // onSnapshot 리스너가 즉시 목록을 갱신합니다.
+}
+async function completeEntryFirestore(id){
+  await db.collection(COLLECTION).doc(id).update({ endAt: firebase.firestore.Timestamp.now() });
+}
+async function resetEntryFirestore(id){
+  await db.collection(COLLECTION).doc(id).update({ endAt: null });
+}
+/* ---------------------------------------------------------------- */
+
+function render(){
+  const app = document.getElementById("app");
+
+  app.innerHTML = `
+    <div class="topbar">
+      <div class="topbar-row">
+        <div class="brand">
+          <div class="date-big">${DATE}</div>
+          <div class="date-sub">운송 배송 등록</div>
+        </div>
+        <button class="chip-btn" id="reconnectBtn">다시 연결</button>
+      </div>
+      <div class="live-label ${live ? "" : "off"}"><span class="live-dot ${live ? "" : "off"}"></span>${live ? "실시간 동기화 중" : "연결 안 됨"}</div>
+    </div>
+
+    ${loadError ? `<div class="err-banner">${loadError}</div>` : ""}
+
+    <div class="form-card">
+      ${step === 1 ? renderStep1() : renderStep2()}
+    </div>
+
+    <div class="list">
+      ${entries.length ? entries.map(renderEntry).join("") : `<div class="empty">등록된 운송이 없습니다. 위에서 새로 등록해 보세요.</div>`}
+    </div>
+    <div class="status-line">이 화면은 실시간 데이터베이스(Firestore)에 연결되어, 다른 기사·관리자의 등록/완료 내역이 새로고침 없이 바로 반영됩니다.</div>
+  `;
+  wire();
+}
+
+function renderStep1(){
+  return `
+    <div class="step-label">1 / 2</div>
+    <h2>새 운송 등록</h2>
+    <div class="field">
+      <label>권역 구분</label>
+      <div class="radio-row">
+        ${REGIONS.map(r => `
+          <label class="radio-option" data-region-radio="${r}">
+            <span class="radio-circle ${form.region === r ? "checked" : ""}"></span>
+            <span class="radio-label">${r}</span>
+          </label>
+        `).join("")}
+      </div>
+    </div>
+    <div class="field">
+      <label>지점명 선택 ${form.stores.length ? `<span class="sel-count">${form.stores.length}개 선택됨</span>` : ""}</label>
+      ${form.region === "지방" ? `
+        <button class="store-chip selectall-chip ${isAllRegionSelected() ? "active" : ""}" id="selectAllBtn">${isAllRegionSelected() ? "전체 해제" : "전체 선택"}</button>
+        <div class="selectall-note">*지방점 운송완료는 중간 터미널 도착을 기준으로 함</div>
+      ` : ""}
+      <div class="store-grid">
+        ${STORE_DEFS.filter(s => s.region === form.region).map(s =>
+          `<button class="store-chip ${form.stores.includes(s.name) ? "active" : ""}" data-store="${s.name}">${s.name}</button>`
+        ).join("")}
+      </div>
+    </div>
+    <button class="save-btn" id="nextBtn" ${form.stores.length ? "" : "disabled"}>다음</button>
+  `;
+}
+
+function isAllRegionSelected(){
+  const namesInRegion = STORE_DEFS.filter(s => s.region === form.region).map(s => s.name);
+  return namesInRegion.length > 0 && namesInRegion.every(n => form.stores.includes(n));
+}
+
+function renderStep2(){
+  return `
+    <div class="step-label">2 / 2</div>
+    <h2>운송을 시작하시겠습니까?</h2>
+    <div class="confirm-box confirm-box-list">
+      <div class="confirm-head">
+        <span class="badge ${form.region === "수도권" ? "direct" : "hub"}">${form.region}</span>
+        <span class="confirm-count">${form.stores.length}개 지점</span>
+      </div>
+      <div class="confirm-chips">
+        ${form.stores.map(name => `<span class="confirm-chip">${name}</span>`).join("")}
+      </div>
+    </div>
+    <div class="action-row">
+      <button class="btn secondary" id="prevBtn">이전</button>
+      <button class="btn primary" id="startNowBtn" ${saving ? "disabled" : ""}>${iconStart(16)}${saving ? "등록 중..." : "운송시작"}</button>
+    </div>
+  `;
+}
+
+function renderEntry(e){
+  const region = e.region || (storeByName(e.store) || {}).region || "";
+  const done = !!e.endAt;
+  return `
+    <div class="card ${done ? "done" : ""}">
+      <div class="card-top">
+        <div class="ct-left">
+          <span class="status-dot ${done ? "done" : "going"}"></span>
+          <span class="ct-name">${e.store}</span>
+        </div>
+        <span class="badge ${region === "수도권" ? "direct" : "hub"}">${region}</span>
+      </div>
+      <div class="flow-row">
+        <div class="flow-side">
+          <div class="flow-icon">${iconStart(26)}</div>
+          <div class="flow-label">운송시작</div>
+          <div class="flow-time">${e.startAt || "--:--"}</div>
+        </div>
+        <div class="flow-connector"></div>
+        <div class="flow-side ${done ? "" : "pending"}">
+          <div class="flow-icon">${iconDone(26)}</div>
+          <div class="flow-label">운송완료</div>
+          <div class="flow-time">${e.endAt || "--:--"}</div>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="btn primary" data-complete="${e.id}" ${(done || completingIds.has(e.id)) ? "disabled" : ""}>${completingIds.has(e.id) ? "기록 중..." : iconDone() + "운송완료"}</button>
+      </div>
+      ${done ? `<div class="action-row"><button class="btn ghost" data-reset="${e.id}">초기화</button></div>` : ""}
+    </div>
+  `;
+}
+
+function wire(){
+  document.getElementById("reconnectBtn").addEventListener("click", () => {
+    if(db) subscribeToday();
+    else initFirebase();
+  });
+
+  if(step === 1){
+    document.querySelectorAll("[data-region-radio]").forEach(el => {
+      el.addEventListener("click", () => {
+        form.region = el.dataset.regionRadio;
+        form.stores = [];
+        render();
+      });
+    });
+    document.querySelectorAll("[data-store]").forEach(el => {
+      el.addEventListener("click", () => {
+        const name = el.dataset.store;
+        const idx = form.stores.indexOf(name);
+        if(idx === -1) form.stores.push(name);
+        else form.stores.splice(idx, 1);
+        render();
+      });
+    });
+    const selectAllBtn = document.getElementById("selectAllBtn");
+    if(selectAllBtn){
+      selectAllBtn.addEventListener("click", () => {
+        const namesInRegion = STORE_DEFS.filter(s => s.region === form.region).map(s => s.name);
+        form.stores = isAllRegionSelected() ? [] : namesInRegion.slice();
+        render();
+      });
+    }
+    document.getElementById("nextBtn").addEventListener("click", () => {
+      if(!form.stores.length) return;
+      step = 2;
+      render();
+    });
+  }
+
+  if(step === 2){
+    document.getElementById("prevBtn").addEventListener("click", () => {
+      step = 1;
+      render();
+    });
+    document.getElementById("startNowBtn").addEventListener("click", async () => {
+      if(saving) return;
+      saving = true; render();
+      try{
+        await Promise.all(form.stores.map(name => {
+          const s = storeByName(name);
+          return createEntryFirestore(name, s ? s.region : form.region);
+        }));
+        form.stores = [];
+        step = 1;
+      }catch(e){
+        console.error("등록 실패", e);
+        alert("등록에 실패했습니다. 연결 상태를 확인하고 다시 시도해 주세요.");
+      }
+      saving = false;
+      render();
+    });
+  }
+
+  document.querySelectorAll("[data-complete]").forEach(el => {
+    el.addEventListener("click", async () => {
+      const id = el.dataset.complete;
+      if(completingIds.has(id)) return;
+      completingIds.add(id);
+      render();
+      try{
+        await completeEntryFirestore(id);
+      }catch(e){
+        console.error("운송완료 기록 실패", e);
+        alert("운송완료 기록에 실패했습니다. 다시 시도해 주세요.");
+      }
+      completingIds.delete(id);
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-reset]").forEach(el => {
+    el.addEventListener("click", async () => {
+      const id = el.dataset.reset;
+      try{
+        await resetEntryFirestore(id);
+      }catch(e){
+        console.error("초기화 실패", e);
+        alert("초기화에 실패했습니다. 다시 시도해 주세요.");
+      }
+      render();
+    });
+  });
+}
+
+(function init(){
+  document.getElementById("app").innerHTML = `<div class="empty">연결하는 중...</div>`;
+  initFirebase();
+})();
+</script>
+</body>
+</html>
