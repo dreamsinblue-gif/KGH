@@ -194,6 +194,7 @@ let selectedDateIdx = 0;     // stats 페이지 날짜 선택 (0 = 오늘)
 let authUser = null;         // 로그인한 Firebase Auth 사용자 (관리자)
 let authError = null;        // 로그인 실패 메시지
 let loggingIn = false;       // 로그인 요청 진행 중 여부
+let dashboardTimer = null;   // 대시보드용 1분 틱 (진행중 항목 경과시간 갱신)
 
 async function initFirebase(){
   try{
@@ -204,6 +205,10 @@ async function initFirebase(){
       live = !!user;
       if(user){
         subscribeDashboard();
+        subscribeStats();
+        if(!dashboardTimer){
+          dashboardTimer = setInterval(() => render(), 60000);
+        }
       }else{
         if(unsubDashboard){ unsubDashboard(); unsubDashboard = null; }
         if(unsubStats){ unsubStats(); unsubStats = null; }
@@ -211,6 +216,7 @@ async function initFirebase(){
         dashboardEntries = [];
         statsEntries = [];
         view = "dashboard";
+        if(dashboardTimer){ clearInterval(dashboardTimer); dashboardTimer = null; }
       }
       render();
     });
