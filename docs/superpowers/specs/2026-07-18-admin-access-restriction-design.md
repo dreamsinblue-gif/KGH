@@ -21,6 +21,7 @@ Firebase Authentication(이메일/비밀번호) + Firestore 보안 규칙 조합
 - 로그인 성공: 기존 대시보드(`view === "dashboard"`)/통계(`view === "stats"`) 화면 구조는 그대로 두고, 진입 조건만 인증 상태에 의존하도록 바꾼다.
 - Firebase Auth는 기본적으로 로그인 상태를 브라우저에 유지하므로(LOCAL persistence), 재방문 시 재로그인이 필요 없다. 대시보드 상단(topbar)에 "로그아웃" 버튼을 추가한다.
 - `ADMIN_EMAIL`은 코드에 상수로 남지만 비밀이 아니라 계정 식별자일 뿐이다. 실제 비밀번호는 코드 어디에도 저장되지 않고 Firebase 콘솔에서 관리자 계정을 만들 때만 설정되며, Firebase 서버가 검증한다.
+- **스타일 재사용**: 새 CSS를 추가하지 않고 admin.html에 이미 있는 클래스를 그대로 쓴다. 로그인 화면은 `.form-card`/`.field`/`.save-btn` 조합으로 구성하고, 로그인 실패 메시지는 기존 `.err-banner`를 재사용한다. topbar는 "배송 관리자 대시보드" 타이틀만 남기고 그 아래 로그인 폼을 배치해 기존 화면 톤과 일치시킨다.
 
 ## 2. Firestore 보안 규칙 & 기사 앱과의 경계
 
