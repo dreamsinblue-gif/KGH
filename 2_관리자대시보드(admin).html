@@ -83,6 +83,10 @@ body{
 
 .legend-row{display:flex; gap:16px; margin:14px 0 10px; font-size:12px; color:var(--gray); align-items:center;}
 .legend-row .dot{width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:5px;}
+.badge.delay{
+  font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700;
+  padding:2px 7px; border-radius:10px; background:#FBEAEA; color:var(--red); margin-left:6px;
+}
 
 .region-grid{display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;}
 @media (max-width:720px){ .region-grid{grid-template-columns:1fr;} }
@@ -90,8 +94,8 @@ body{
 .region-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
 .region-head .name{font-size:15px; font-weight:700; color:var(--ink);}
 .region-head .ratio{font-size:12px; color:var(--gray); font-family:'JetBrains Mono',monospace;}
-.row-head{display:grid; grid-template-columns:20px 1fr 40px 40px; font-size:11px; color:var(--gray); padding:0 0 6px; border-bottom:1px solid var(--line); align-items:center;}
-.row{display:grid; grid-template-columns:20px 1fr 40px 40px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);}
+.row-head{display:grid; grid-template-columns:20px 1fr 40px 40px 74px; font-size:11px; color:var(--gray); padding:0 0 6px; border-bottom:1px solid var(--line); align-items:center;}
+.row{display:grid; grid-template-columns:20px 1fr 40px 40px 74px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);}
 .row:last-child{border-bottom:none;}
 .status-dot{width:9px; height:9px; border-radius:50%; flex:none;}
 .status-dot.wait{background:var(--line);}
@@ -408,22 +412,28 @@ function regionCard(label, storeList, isRural){
         <span class="name">${label}</span>
         <span class="ratio">${doneN} / ${storeList.length} 완료</span>
       </div>
+      ${isRural ? `<div class="stats-note">*지방점 소요시간은 중간 허브 도착 기준이며, 지연 판정은 지방 전체 평균 대비로 계산됩니다</div>` : ""}
       <div class="row-head">
         <span></span><span>지점</span>
         ${iconStart(14)}
         ${isRural ? iconWarehouse(14) : iconDone(14)}
+        <span>소요</span>
       </div>
       ${storeList.map(name => {
         const e = findEntry(name);
         const status = !e ? "wait" : (e.endAt ? "done" : "going");
         const startTxt = e && e.startAt ? fmtTime(e.startAt) : "--:--";
         const endTxt = e && e.endAt ? fmtTime(e.endAt) : "--:--";
+        const elapsed = e ? elapsedMinutes(e) : null;
+        const delayed = e ? isDelayed(e) : null;
+        const elapsedTxt = elapsed === null ? "" : (elapsed + "분" + (status === "going" ? "째" : ""));
         return `
           <div class="row">
             <span class="status-dot ${status}"></span>
             <span class="name">${name}</span>
             <span class="time ${status === "wait" ? "" : "going"}">${startTxt}</span>
             <span class="time ${status === "done" ? "done" : ""}">${endTxt}</span>
+            <span class="time">${elapsedTxt}${delayed ? `<span class="badge delay">지연</span>` : ""}</span>
           </div>
         `;
       }).join("")}
