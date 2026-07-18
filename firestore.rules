@@ -1,19 +1,39 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Firestore rejects a `list` request unless the query's own filters make
+    // every possible matched document provably satisfy the rule — it does not
+    // execute the query and filter afterward. Both index.html and admin.html's
+    // dashboard query with `.where("date", "==", <today's date string>)`, so
+    // the anonymous branch below must key off `date` (matching that filter),
+    // not `createdAt` (which no query here filters on — an earlier version of
+    // this rule used `createdAt` and would have rejected every anonymous
+    // `list` call, including the driver app's own "오늘 등록 목록").
+    //
+    // `date` is a plain "YYYY-MM-DD" string built from the browser's local
+    // clock (see `todayKey()` in both HTML files) — assumed to be Korean
+    // devices, so "today" is computed here in Asia/Seoul time to match.
+    function isToday(dateStr) {
+      return dateStr ==
+        string(request.time.year('Asia/Seoul')) + '-' +
+        (request.time.month('Asia/Seoul') < 10 ? '0' : '') + string(request.time.month('Asia/Seoul')) + '-' +
+        (request.time.day('Asia/Seoul') < 10 ? '0' : '') + string(request.time.day('Asia/Seoul'));
+    }
+
     match /deliveries/{deliveryId} {
       // 기사 앱(index.html)과 관리자 로그인 상태 모두 create/update 가능 (기존 동작 유지)
       allow create, update: if request.auth != null;
 
       // list(쿼리) 읽기:
       //  - 관리자(ADMIN_EMAIL로 로그인)는 전체 기간 조회 가능 (30일 통계용)
-      //  - 그 외 인증된 클라이언트(기사 앱의 익명 세션 포함)는 최근 24시간 이내
-      //    생성된 문서만 조회 가능 — 오늘 등록 목록을 보여주는 데는 충분하고,
-      //    30일치 range 쿼리는 이 조건을 통과하지 못해 전체 요청이 거부됨.
+      //  - 그 외 인증된 클라이언트(기사 앱의 익명 세션 포함)는 오늘 날짜(date == 오늘)
+      //    문서만 조회 가능 — 두 앱 모두 이미 date 필드로 동등 비교(==) 쿼리만 사용하므로
+      //    이 조건과 정확히 맞아떨어짐. 30일치 range(>=) 쿼리는 대부분의 문서에서
+      //    isToday()가 거짓이 되어 전체 요청이 거부됨.
       allow list: if request.auth != null &&
         (
           request.auth.token.email == "admin@yourproject.local"
-          || resource.data.createdAt > request.time - duration.value(1, 'd')
+          || isToday(resource.data.date)
         );
     }
   }
