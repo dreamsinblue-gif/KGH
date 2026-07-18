@@ -94,8 +94,8 @@ body{
 .region-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
 .region-head .name{font-size:15px; font-weight:700; color:var(--ink);}
 .region-head .ratio{font-size:12px; color:var(--gray); font-family:'JetBrains Mono',monospace;}
-.row-head{display:grid; grid-template-columns:20px 1fr 40px 40px 74px; font-size:11px; color:var(--gray); padding:0 0 6px; border-bottom:1px solid var(--line); align-items:center;}
-.row{display:grid; grid-template-columns:20px 1fr 40px 40px 74px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);}
+.row-head{display:grid; grid-template-columns:20px 1fr 40px 40px 98px; font-size:11px; color:var(--gray); padding:0 0 6px; border-bottom:1px solid var(--line); align-items:center;}
+.row{display:grid; grid-template-columns:20px 1fr 40px 40px 98px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);}
 .row:last-child{border-bottom:none;}
 .status-dot{width:9px; height:9px; border-radius:50%; flex:none;}
 .status-dot.wait{background:var(--line);}
@@ -433,7 +433,7 @@ function regionCard(label, storeList, isRural){
             <span class="name">${name}</span>
             <span class="time ${status === "wait" ? "" : "going"}">${startTxt}</span>
             <span class="time ${status === "done" ? "done" : ""}">${endTxt}</span>
-            <span class="time">${elapsedTxt}${delayed ? `<span class="badge delay">지연</span>` : ""}</span>
+            <span class="time" style="white-space:nowrap;">${elapsedTxt}${delayed ? `<span class="badge delay">지연</span>` : ""}</span>
           </div>
         `;
       }).join("")}
