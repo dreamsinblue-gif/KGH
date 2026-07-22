@@ -13,11 +13,19 @@ service cloud.firestore {
     // `date` is a plain "YYYY-MM-DD" string built from the browser's local
     // clock (see `todayKey()` in both HTML files) — assumed to be Korean
     // devices, so "today" is computed here in Asia/Seoul time to match.
+    //
+    // Timestamp.year()/.month()/.day() in the rules language take NO
+    // arguments and always read UTC — there is no timezone-aware overload
+    // (confirmed by the deploy-time compiler warning "Incorrect number of
+    // arguments supplied to function: year" when a timezone string was
+    // passed here). So Asia/Seoul (UTC+9, no DST) is computed manually by
+    // shifting request.time by 9 hours before reading its date parts.
     function isToday(dateStr) {
+      let kst = timestamp.value(request.time.toMillis() + 9 * 60 * 60 * 1000);
       return dateStr ==
-        string(request.time.year('Asia/Seoul')) + '-' +
-        (request.time.month('Asia/Seoul') < 10 ? '0' : '') + string(request.time.month('Asia/Seoul')) + '-' +
-        (request.time.day('Asia/Seoul') < 10 ? '0' : '') + string(request.time.day('Asia/Seoul'));
+        string(kst.year()) + '-' +
+        (kst.month() < 10 ? '0' : '') + string(kst.month()) + '-' +
+        (kst.day() < 10 ? '0' : '') + string(kst.day());
     }
 
     match /deliveries/{deliveryId} {
@@ -30,9 +38,12 @@ service cloud.firestore {
       //    문서만 조회 가능 — 두 앱 모두 이미 date 필드로 동등 비교(==) 쿼리만 사용하므로
       //    이 조건과 정확히 맞아떨어짐. 30일치 range(>=) 쿼리는 대부분의 문서에서
       //    isToday()가 거짓이 되어 전체 요청이 거부됨.
+      // `request.auth.token.email`은 익명 로그인(기사 앱)에는 존재하지 않는 클레임이라
+      // 곧바로 비교하면 Firestore 규칙 평가 자체가 에러로 실패해 전체 allow를 거부한다
+      // (`||`가 이 에러를 삼키지 않음) — 그래서 `'email' in ...`로 존재 여부부터 확인한다.
       allow list: if request.auth != null &&
         (
-          request.auth.token.email == "admin@yourproject.local"
+          (('email' in request.auth.token) && request.auth.token.email == "dreamsinblue@gmail.com")
           || isToday(resource.data.date)
         );
     }

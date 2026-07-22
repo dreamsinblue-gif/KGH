@@ -1,0 +1,20 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      ".venv/**",
+      ".vscode/**",
+      ".superpowers/**",
+      "docs/**",
+      "CLAUDE.md",
+      "3_개발기획서.md",
+      "firestore.rules"
+    ]
+  }
+}

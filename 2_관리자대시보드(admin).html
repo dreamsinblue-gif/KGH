@@ -94,14 +94,14 @@ body{
 .region-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
 .region-head .name{font-size:15px; font-weight:700; color:var(--ink);}
 .region-head .ratio{font-size:12px; color:var(--gray); font-family:'JetBrains Mono',monospace;}
-.row-head{display:grid; grid-template-columns:20px 1fr 40px 40px 98px; font-size:11px; color:var(--gray); padding:0 0 6px; border-bottom:1px solid var(--line); align-items:center;}
-.row{display:grid; grid-template-columns:20px 1fr 40px 40px 98px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);}
+.row-head{display:grid; grid-template-columns:20px 1fr 40px 40px 98px; gap:6px; font-size:11px; color:var(--gray); padding:0 0 6px; border-bottom:1px solid var(--line); align-items:center;}
+.row{display:grid; grid-template-columns:20px 1fr 40px 40px 98px; gap:6px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line);}
 .row:last-child{border-bottom:none;}
 .status-dot{width:9px; height:9px; border-radius:50%; flex:none;}
 .status-dot.wait{background:var(--line);}
 .status-dot.going{background:var(--amber);}
 .status-dot.done{background:var(--green);}
-.row .name{font-size:13px;}
+.row .name{font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 .row .time{font-size:12px; font-family:'JetBrains Mono',monospace; color:var(--gray);}
 .row .time.done{color:var(--green); font-weight:700;}
 .row .time.going{color:var(--amber); font-weight:700;}
@@ -136,17 +136,17 @@ body{
    index.html(기사 앱)과 같은 Firebase 프로젝트의 설정값을 그대로 넣어주세요.
 ================================================================ */
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAOveigxomIVNyJ-gonrjo1p3z6MYwIjTU",
+  authDomain: "delivery-tracker-9b6d7.firebaseapp.com",
+  projectId: "delivery-tracker-9b6d7",
+  storageBucket: "delivery-tracker-9b6d7.firebasestorage.app",
+  messagingSenderId: "288400096589",
+  appId: "1:288400096589:web:ce4c8530412ea58b670b04"
 };
 const COLLECTION = "deliveries";
 // 관리자 로그인 계정 식별자 (비밀 아님 — 비밀번호는 Firebase 콘솔에서만 설정됨).
 // firestore.rules의 ADMIN_EMAIL 값과 반드시 동일해야 함.
-const ADMIN_EMAIL = "admin@yourproject.local";
+const ADMIN_EMAIL = "dreamsinblue@gmail.com";
 /* ============================================================= */
 
 const METRO = ["광화문점","이화여대교내서점","인천점","일산점","합정점","송도점","건대스타시티점","은평점","청량리점","동대문점","수유점","강남점","서울대교내서점","잠실점","영등포점","판교점","목동점","광교점","평촌점","천호점","분당점","가든파이브점","원그로브점","수원점"];

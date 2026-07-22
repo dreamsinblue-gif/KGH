@@ -147,12 +147,12 @@ body{
    Firebase 콘솔 > 프로젝트 설정 > 일반 > 내 앱(웹 앱) > SDK 설정 및 구성 에서 복사
 ================================================================================ */
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAOveigxomIVNyJ-gonrjo1p3z6MYwIjTU",
+  authDomain: "delivery-tracker-9b6d7.firebaseapp.com",
+  projectId: "delivery-tracker-9b6d7",
+  storageBucket: "delivery-tracker-9b6d7.firebasestorage.app",
+  messagingSenderId: "288400096589",
+  appId: "1:288400096589:web:ce4c8530412ea58b670b04"
 };
 const COLLECTION = "deliveries";
 /* ============================================================================ */
@@ -472,6 +472,9 @@ function wire(){
   document.querySelectorAll("[data-reset]").forEach(el => {
     el.addEventListener("click", async () => {
       const id = el.dataset.reset;
+      const entry = entries.find(e => e.id === id);
+      const storeLabel = entry ? entry.store : "이 지점";
+      if(!confirm(`${storeLabel}의 운송완료 기록을 초기화할까요?\n완료 시각이 지워지고 다시 "운송중" 상태로 돌아갑니다.`)) return;
       try{
         await resetEntryFirestore(id);
       }catch(e){
