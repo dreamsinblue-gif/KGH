@@ -68,6 +68,9 @@ body{
   font-family:'Noto Sans KR',sans-serif; line-height:1.2;
 }
 .store-chip.active{background:var(--green); border-color:var(--green); color:#fff;}
+.store-chip.taken{background:var(--paper-2); border-color:var(--line); color:var(--gray); cursor:not-allowed; display:flex; flex-direction:column; align-items:center; gap:2px;}
+.store-chip .taken-label{font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; color:var(--amber);}
+.store-chip .taken-label.done{color:var(--green-light);}
 .sel-count{font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--amber); font-weight:700; margin-left:6px;}
 .selectall-chip{
   display:block; width:100%; padding:8px 12px; margin-bottom:6px; text-align:center;
@@ -323,18 +326,29 @@ function renderStep1(){
         <div class="selectall-note">*지방점 운송완료는 중간 터미널 도착을 기준으로 함</div>
       ` : ""}
       <div class="store-grid">
-        ${STORE_DEFS.filter(s => s.region === form.region).map(s =>
-          `<button class="store-chip ${form.stores.includes(s.name) ? "active" : ""}" data-store="${s.name}">${s.name}</button>`
-        ).join("")}
+        ${STORE_DEFS.filter(s => s.region === form.region).map(s => {
+          const taken = takenBy(s.name);
+          if(taken){
+            const done = !!taken.endAt;
+            return `<button class="store-chip taken" disabled>${s.name}<span class="taken-label ${done ? "done" : ""}">${done ? "완료" : "등록됨"}</span></button>`;
+          }
+          return `<button class="store-chip ${form.stores.includes(s.name) ? "active" : ""}" data-store="${s.name}">${s.name}</button>`;
+        }).join("")}
       </div>
     </div>
     <button class="save-btn" id="nextBtn" ${form.stores.length ? "" : "disabled"}>다음</button>
   `;
 }
 
+// 오늘 이미 등록된(다른 기사가 먼저 시작했을 수 있는) 지점 — 동시에 여러 기사가
+// 같은 지점을 중복 등록하는 것을 막기 위해 선택 화면에서 제외한다.
+function takenBy(storeName){
+  return entries.find(e => e.store === storeName) || null;
+}
+
 function isAllRegionSelected(){
-  const namesInRegion = STORE_DEFS.filter(s => s.region === form.region).map(s => s.name);
-  return namesInRegion.length > 0 && namesInRegion.every(n => form.stores.includes(n));
+  const selectable = STORE_DEFS.filter(s => s.region === form.region && !takenBy(s.name)).map(s => s.name);
+  return selectable.length > 0 && selectable.every(n => form.stores.includes(n));
 }
 
 function renderStep2(){
@@ -416,8 +430,8 @@ function wire(){
     const selectAllBtn = document.getElementById("selectAllBtn");
     if(selectAllBtn){
       selectAllBtn.addEventListener("click", () => {
-        const namesInRegion = STORE_DEFS.filter(s => s.region === form.region).map(s => s.name);
-        form.stores = isAllRegionSelected() ? [] : namesInRegion.slice();
+        const selectable = STORE_DEFS.filter(s => s.region === form.region && !takenBy(s.name)).map(s => s.name);
+        form.stores = isAllRegionSelected() ? [] : selectable.slice();
         render();
       });
     }
