@@ -466,6 +466,9 @@ function wire(){
     el.addEventListener("click", async () => {
       const id = el.dataset.complete;
       if(completingIds.has(id)) return;
+      const entry = entries.find(e => e.id === id);
+      const storeLabel = entry ? entry.store : "이 지점";
+      if(!confirm(`${storeLabel}의 운송을 완료 하시겠습니까?\n완료 후에는 목록에서 사라지며 되돌릴 수 없습니다.`)) return;
       completingIds.add(id);
       render();
       try{
