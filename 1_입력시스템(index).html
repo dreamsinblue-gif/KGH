@@ -197,7 +197,7 @@ function todayKey(){
 function fmtTime(date){
   return String(date.getHours()).padStart(2,"0") + ":" + String(date.getMinutes()).padStart(2,"0");
 }
-const DATE = todayKey();
+let DATE = todayKey();
 
 let entries = [];
 let form = { region: "수도권", stores: [] };
@@ -210,6 +210,18 @@ let live = false;
 /* ---------------- Firebase 초기화 + 실시간 구독 ---------------- */
 let db = null;
 let unsubscribe = null;
+let dateCheckTimer = null;
+
+// DATE는 페이지 로드 시 한 번만 계산되므로, 자정을 넘겨 화면을 계속 켜둔 채로
+// 쓰는 기사가 있으면 날짜가 안 바뀐다 — 1분마다 실제 날짜와 비교해 바뀌었으면
+// DATE를 갱신하고 오늘자 구독을 다시 건다 (페이지 리로드 없이).
+function checkDateRollover(){
+  const nowKey = todayKey();
+  if(nowKey === DATE) return;
+  DATE = nowKey;
+  subscribeToday();
+  render();
+}
 
 async function initFirebase(){
   try{
@@ -217,6 +229,9 @@ async function initFirebase(){
     db = firebase.firestore();
     await firebase.auth().signInAnonymously();
     subscribeToday();
+    if(!dateCheckTimer){
+      dateCheckTimer = setInterval(checkDateRollover, 60000);
+    }
   }catch(e){
     console.error("Firebase 초기화 실패", e);
     loadError = "Firebase 연결에 실패했습니다. firebaseConfig 값이 올바른지 확인해 주세요. (" + (e && e.message ? e.message : e) + ")";
