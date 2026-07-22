@@ -104,12 +104,10 @@ body{
 .save-btn:disabled{background:var(--paper-2); color:var(--gray); cursor:not-allowed;}
 .list{margin-top:16px; display:flex; flex-direction:column; gap:10px;}
 .card{background:var(--white); border:1.5px solid var(--line); border-radius:14px; padding:14px;}
-.card.done{border-color:var(--green-light);}
 .card-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
 .ct-left{display:flex; align-items:center; gap:8px; min-width:0;}
 .status-dot{width:10px; height:10px; border-radius:50%; flex:none;}
 .status-dot.going{background:var(--amber);}
-.status-dot.done{background:var(--green);}
 .ct-name{font-weight:700; font-size:14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .badge{font-family:'JetBrains Mono',monospace; font-size:9.5px; font-weight:700; padding:2px 7px; border-radius:10px; flex:none;}
 .badge.direct{background:#E4EEE7; color:var(--green);}
@@ -132,7 +130,6 @@ body{
 .btn{flex:1; padding:10px 0; border-radius:9px; border:none; font-weight:700; font-size:13px; cursor:pointer; font-family:'Noto Sans KR',sans-serif;}
 .btn.primary{background:var(--green); color:#fff;}
 .btn.primary:disabled{background:var(--paper-2); color:var(--gray); cursor:not-allowed;}
-.btn.ghost{background:var(--white); border:1.5px solid var(--red); color:var(--red);}
 .btn.secondary{background:var(--white); border:1.5px solid var(--line); color:var(--ink);}
 .empty{text-align:center; padding:40px 0; color:var(--gray); font-size:13px;}
 .status-line{font-size:11px; color:var(--gray); text-align:center; margin-top:18px; font-family:'JetBrains Mono',monospace;}
@@ -270,13 +267,12 @@ async function createEntryFirestore(store, region){
 async function completeEntryFirestore(id){
   await db.collection(COLLECTION).doc(id).update({ endAt: firebase.firestore.Timestamp.now() });
 }
-async function resetEntryFirestore(id){
-  await db.collection(COLLECTION).doc(id).update({ endAt: null });
-}
 /* ---------------------------------------------------------------- */
 
 function render(){
   const app = document.getElementById("app");
+  // 운송완료된 항목은 목록에서 완전히 숨긴다 — 이 화면에는 진행중인 건만 남는다.
+  const visibleEntries = entries.filter(e => !e.endAt);
 
   app.innerHTML = `
     <div class="topbar">
@@ -297,7 +293,7 @@ function render(){
     </div>
 
     <div class="list">
-      ${entries.length ? entries.map(renderEntry).join("") : `<div class="empty">등록된 운송이 없습니다. 위에서 새로 등록해 보세요.</div>`}
+      ${visibleEntries.length ? visibleEntries.map(renderEntry).join("") : `<div class="empty">등록된 운송이 없습니다. 위에서 새로 등록해 보세요.</div>`}
     </div>
     <div class="status-line">이 화면은 실시간 데이터베이스(Firestore)에 연결되어, 다른 기사·관리자의 등록/완료 내역이 새로고침 없이 바로 반영됩니다.</div>
   `;
@@ -371,14 +367,15 @@ function renderStep2(){
   `;
 }
 
+// visibleEntries만 넘어오므로(운송완료 항목은 render()에서 이미 걸러짐) 이 함수가
+// 받는 e는 항상 진행중 상태이다.
 function renderEntry(e){
   const region = e.region || (storeByName(e.store) || {}).region || "";
-  const done = !!e.endAt;
   return `
-    <div class="card ${done ? "done" : ""}">
+    <div class="card">
       <div class="card-top">
         <div class="ct-left">
-          <span class="status-dot ${done ? "done" : "going"}"></span>
+          <span class="status-dot going"></span>
           <span class="ct-name">${e.store}</span>
         </div>
         <span class="badge ${region === "수도권" ? "direct" : "hub"}">${region}</span>
@@ -390,16 +387,15 @@ function renderEntry(e){
           <div class="flow-time">${e.startAt || "--:--"}</div>
         </div>
         <div class="flow-connector"></div>
-        <div class="flow-side ${done ? "" : "pending"}">
+        <div class="flow-side pending">
           <div class="flow-icon">${iconDone(26)}</div>
           <div class="flow-label">운송완료</div>
-          <div class="flow-time">${e.endAt || "--:--"}</div>
+          <div class="flow-time">--:--</div>
         </div>
       </div>
       <div class="action-row">
-        <button class="btn primary" data-complete="${e.id}" ${(done || completingIds.has(e.id)) ? "disabled" : ""}>${completingIds.has(e.id) ? "기록 중..." : iconDone() + "운송완료"}</button>
+        <button class="btn primary" data-complete="${e.id}" ${completingIds.has(e.id) ? "disabled" : ""}>${completingIds.has(e.id) ? "기록 중..." : iconDone() + "운송완료"}</button>
       </div>
-      ${done ? `<div class="action-row"><button class="btn ghost" data-reset="${e.id}">초기화</button></div>` : ""}
     </div>
   `;
 }
@@ -479,22 +475,6 @@ function wire(){
         alert("운송완료 기록에 실패했습니다. 다시 시도해 주세요.");
       }
       completingIds.delete(id);
-      render();
-    });
-  });
-
-  document.querySelectorAll("[data-reset]").forEach(el => {
-    el.addEventListener("click", async () => {
-      const id = el.dataset.reset;
-      const entry = entries.find(e => e.id === id);
-      const storeLabel = entry ? entry.store : "이 지점";
-      if(!confirm(`${storeLabel}의 운송완료 기록을 초기화할까요?\n완료 시각이 지워지고 다시 "운송중" 상태로 돌아갑니다.`)) return;
-      try{
-        await resetEntryFirestore(id);
-      }catch(e){
-        console.error("초기화 실패", e);
-        alert("초기화에 실패했습니다. 다시 시도해 주세요.");
-      }
       render();
     });
   });
