@@ -150,6 +150,10 @@ body{
   background:#FBEAEA; border:1.5px solid var(--red); color:#7A2626; border-radius:10px;
   padding:12px 14px; font-size:12.5px; margin-top:14px; line-height:1.6;
 }
+.test-banner{
+  background:#FBF0DC; border:1.5px solid var(--amber); color:#7A5A08; border-radius:10px;
+  padding:12px 14px; font-size:12.5px; margin-top:14px; line-height:1.6; font-weight:700; text-align:center;
+}
 </style>
 </head>
 <body>
@@ -212,6 +216,24 @@ function fmtTime(date){
   return String(date.getHours()).padStart(2,"0") + ":" + String(date.getMinutes()).padStart(2,"0");
 }
 let DATE = todayKey();
+
+// ?test=1 로 접속하면 실제 Firebase에 연결하지 않고 가짜 데이터로만 동작한다.
+// 운송시작/운송완료/일괄완료 등 모든 조작이 이 브라우저 탭 안에서만 일어나며
+// 실제 서비스 데이터에는 전혀 영향을 주지 않는다 — 파라미터 없이 다시 열면
+// 평소처럼 실제 Firebase에 연결된다.
+const TEST_MODE = new URLSearchParams(location.search).get("test") === "1";
+
+function seedTestData(){
+  const ago = (min) => fmtTime(new Date(Date.now() - min * 60000));
+  entries = [
+    { id: "demo-1", store: "광화문점", region: "수도권", startAt: ago(40), endAt: "", _sortMs: 1 },
+    { id: "demo-2", store: "대구점", region: "지방", startAt: ago(60), endAt: "", _sortMs: 2 },
+    { id: "demo-3", store: "부산점", region: "지방", startAt: ago(60), endAt: "", _sortMs: 3 },
+    { id: "demo-4", store: "대전점", region: "지방", startAt: ago(60), endAt: "", _sortMs: 4 }
+  ];
+  loadError = null;
+  live = true;
+}
 
 let entries = [];
 let form = { region: "수도권", stores: [] };
@@ -285,6 +307,16 @@ function subscribeToday(){
 }
 
 async function createEntryFirestore(store, region){
+  if(TEST_MODE){
+    entries.push({
+      id: "demo-" + Math.random().toString(36).slice(2, 8),
+      store, region,
+      startAt: fmtTime(new Date()),
+      endAt: "",
+      _sortMs: Date.now()
+    });
+    return;
+  }
   await db.collection(COLLECTION).add({
     store, region, date: DATE,
     startAt: firebase.firestore.Timestamp.now(),
@@ -294,6 +326,11 @@ async function createEntryFirestore(store, region){
   // onSnapshot 리스너가 즉시 목록을 갱신합니다.
 }
 async function completeEntryFirestore(id){
+  if(TEST_MODE){
+    const e = entries.find(e => e.id === id);
+    if(e) e.endAt = fmtTime(new Date());
+    return;
+  }
   await db.collection(COLLECTION).doc(id).update({ endAt: firebase.firestore.Timestamp.now() });
 }
 /* ---------------------------------------------------------------- */
@@ -323,6 +360,7 @@ function render(){
       </div>
     </div>
 
+    ${TEST_MODE ? `<div class="test-banner">🧪 테스트 모드 — 실제 데이터베이스에 저장되지 않습니다. "다시 연결"을 누르면 샘플 데이터가 초기화됩니다.</div>` : ""}
     ${loadError ? `<div class="err-banner">${loadError}</div>` : ""}
 
     <div class="form-card">
@@ -337,7 +375,7 @@ function render(){
       ` : ""}
       ${visibleEntries.length ? visibleEntries.map(renderEntry).join("") : `<div class="empty">등록된 운송이 없습니다. 위에서 새로 등록해 보세요.</div>`}
     </div>
-    <div class="status-line">이 화면은 실시간 데이터베이스(Firestore)에 연결되어, 다른 기사·관리자의 등록/완료 내역이 새로고침 없이 바로 반영됩니다.</div>
+    <div class="status-line">${TEST_MODE ? "테스트 모드 — 이 브라우저 탭에서만 동작하며 실제 데이터베이스와 연결되어 있지 않습니다." : "이 화면은 실시간 데이터베이스(Firestore)에 연결되어, 다른 기사·관리자의 등록/완료 내역이 새로고침 없이 바로 반영됩니다."}</div>
   `;
   wire();
 }
@@ -444,6 +482,7 @@ function renderEntry(e){
 
 function wire(){
   document.getElementById("reconnectBtn").addEventListener("click", () => {
+    if(TEST_MODE){ seedTestData(); render(); return; }
     if(db) subscribeToday();
     else initFirebase();
   });
@@ -546,6 +585,11 @@ function wire(){
 }
 
 (function init(){
+  if(TEST_MODE){
+    seedTestData();
+    render();
+    return;
+  }
   document.getElementById("app").innerHTML = `<div class="empty">연결하는 중...</div>`;
   initFirebase();
 })();
