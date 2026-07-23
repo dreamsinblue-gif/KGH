@@ -109,6 +109,13 @@ body{
 }
 .save-btn:disabled{background:var(--paper-2); color:var(--gray); cursor:not-allowed;}
 .list{margin-top:16px; display:flex; flex-direction:column; gap:10px;}
+.bulk-complete-btn{
+  display:flex; align-items:center; justify-content:center; width:100%; padding:12px 0;
+  border:none; border-radius:10px; background:var(--green); color:#fff; font-weight:700;
+  font-size:13.5px; cursor:pointer; font-family:'Noto Sans KR',sans-serif;
+}
+.bulk-complete-btn:disabled{background:var(--paper-2); color:var(--gray); cursor:not-allowed;}
+.bulk-complete-btn svg{vertical-align:-2px; margin-right:6px;}
 .card{background:var(--white); border:1.5px solid var(--line); border-radius:14px; padding:14px;}
 .card-top{display:flex; align-items:center; justify-content:space-between; gap:8px;}
 .ct-left{display:flex; align-items:center; gap:8px; min-width:0;}
@@ -295,6 +302,9 @@ function render(){
   const app = document.getElementById("app");
   // 운송완료된 항목은 목록에서 완전히 숨긴다 — 이 화면에는 진행중인 건만 남는다.
   const visibleEntries = entries.filter(e => !e.endAt);
+  // 지방 지점은 한 트럭으로 묶여 같은 중간 허브에 동시 도착하므로, 진행중인 지방
+  // 건이 2개 이상이면 개별 완료 대신 한 번에 완료 처리할 수 있는 버튼을 보여준다.
+  const ruralGoing = visibleEntries.filter(e => e.region === "지방");
 
   app.innerHTML = `
     <div class="topbar">
@@ -320,6 +330,11 @@ function render(){
     </div>
 
     <div class="list">
+      ${ruralGoing.length > 1 ? `
+        <button class="bulk-complete-btn" id="bulkCompleteBtn" ${ruralGoing.some(e => completingIds.has(e.id)) ? "disabled" : ""}>
+          ${iconDone(16)}지방 ${ruralGoing.length}개 지점 허브 도착(일괄 운송완료)
+        </button>
+      ` : ""}
       ${visibleEntries.length ? visibleEntries.map(renderEntry).join("") : `<div class="empty">등록된 운송이 없습니다. 위에서 새로 등록해 보세요.</div>`}
     </div>
     <div class="status-line">이 화면은 실시간 데이터베이스(Firestore)에 연결되어, 다른 기사·관리자의 등록/완료 내역이 새로고침 없이 바로 반영됩니다.</div>
@@ -508,6 +523,26 @@ function wire(){
       render();
     });
   });
+
+  const bulkCompleteBtn = document.getElementById("bulkCompleteBtn");
+  if(bulkCompleteBtn){
+    bulkCompleteBtn.addEventListener("click", async () => {
+      const ruralGoing = entries.filter(e => !e.endAt && e.region === "지방");
+      if(!ruralGoing.length || ruralGoing.some(e => completingIds.has(e.id))) return;
+      const names = ruralGoing.map(e => e.store).join(", ");
+      if(!confirm(`지방 ${ruralGoing.length}개 지점(${names})을 허브 도착 기준으로 한 번에 운송완료 처리할까요?\n완료 후에는 목록에서 사라지며 되돌릴 수 없습니다.`)) return;
+      ruralGoing.forEach(e => completingIds.add(e.id));
+      render();
+      try{
+        await Promise.all(ruralGoing.map(e => completeEntryFirestore(e.id)));
+      }catch(err){
+        console.error("일괄 운송완료 실패", err);
+        alert("일괄 완료 처리에 실패했습니다. 연결 상태를 확인하고 다시 시도해 주세요.");
+      }
+      ruralGoing.forEach(e => completingIds.delete(e.id));
+      render();
+    });
+  }
 }
 
 (function init(){
