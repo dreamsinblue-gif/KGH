@@ -14,7 +14,12 @@
       "docs/**",
       "CLAUDE.md",
       "3_개발기획서.md",
+      "4_과제보고서.md",
       "firestore.rules"
+    ],
+    "rewrites": [
+      { "source": "/driver", "destination": "/1_입력시스템(index).html" },
+      { "source": "/admin", "destination": "/2_관리자대시보드(admin).html" }
     ]
   }
 }

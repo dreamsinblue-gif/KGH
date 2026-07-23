@@ -8,8 +8,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Deployed instances:**
 - Firebase project: `delivery-tracker-9b6d7`
-- Driver app: https://delivery-tracker-9b6d7.web.app/1_입력시스템(index).html
-- Admin app: https://delivery-tracker-9b6d7.web.app/2_관리자대시보드(admin).html — admin login is `dreamsinblue@gmail.com` (Firebase Authentication user; password set in Firebase Console, not stored anywhere in this repo)
+- Driver app: https://delivery-tracker-9b6d7.web.app/driver (short alias; full path https://delivery-tracker-9b6d7.web.app/1_입력시스템(index).html still works — both serve the same file, see `hosting.rewrites` in `firebase.json`)
+- Admin app: https://delivery-tracker-9b6d7.web.app/admin (short alias for .../2_관리자대시보드(admin).html) — admin login is `dreamsinblue@gmail.com` (Firebase Authentication user; password set in Firebase Console, not stored anywhere in this repo)
 - Apps Script backup: source lives outside this repo at `../delivery-tracker-backup-script` (sibling folder, deployed via `clasp`), bound script project "배송기록 자동백업" — writes to Google Sheet https://docs.google.com/spreadsheets/d/1wUtlIpiU9eme7I1aPWtXKlQadPhOEj6W74VVBEgEZtQ/edit (tab `배송기록`). Runs on OAuth from the project-owner Google account, calling the Firestore REST API directly (bypasses `firestore.rules`, which only applies to Firebase client SDKs). Re-deploy with `clasp push` from that folder; re-run `setup()` in the Apps Script editor only if the 5-minute trigger needs recreating.
 - Source control: https://github.com/dreamsinblue-gif/KGH (`master` branch). Push after committing so other machines can `git pull`; see "Setting up on a new machine" under Structure & running below.
 
@@ -38,6 +38,8 @@ Both need `npx firebase-tools login` once per machine (browser OAuth) before the
 **Store list duplication.** The set of 36 stores (24 수도권 / 12 지방) is defined twice and must stay in sync and in the same display order:
 - index.html: `STORE_DEFS` (array of `{name, region}`)
 - admin.html: `METRO` + `RURAL` (flat name arrays, concatenated as `ALL_STORES`)
+
+**Short URL aliases.** The real filenames are Korean and get percent-encoded in a browser's address bar, so `firebase.json`'s `hosting.rewrites` maps `/driver` → index.html and `/admin` → admin.html for sharing/typing. Both the short and original long paths serve the same files — this is an alias, not a redirect, so there's no need to update bookmarks that already use the long URLs.
 
 **Firebase config is live, not a placeholder.** Both files' `firebaseConfig` point at the `delivery-tracker-9b6d7` project and are deployed (see 배포된 인스턴스 above). If this project is ever swapped for a different Firebase project, `firebaseConfig` must be updated identically in both HTML files.
 
