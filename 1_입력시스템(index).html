@@ -75,8 +75,10 @@ body{
 }
 .store-chip.active{background:var(--green); border-color:var(--green); color:#fff;}
 .store-chip.taken{background:var(--paper-2); border-color:var(--line); color:var(--gray); cursor:not-allowed; display:flex; flex-direction:column; align-items:center; gap:2px;}
+.store-chip:not(.taken){display:flex; flex-direction:column; align-items:center; gap:2px;}
 .store-chip .taken-label{font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; color:var(--amber);}
-.store-chip .taken-label.done{color:var(--green-light);}
+.nth-label{font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; color:var(--amber);}
+.store-chip.active .nth-label{color:#fff;}
 .sel-count{font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--amber); font-weight:700; margin-left:6px;}
 .selectall-chip{
   display:block; width:100%; padding:8px 12px; margin-bottom:6px; text-align:center;
@@ -410,12 +412,11 @@ function renderStep1(){
       ` : ""}
       <div class="store-grid">
         ${STORE_DEFS.filter(s => s.region === form.region).map(s => {
-          const taken = takenBy(s.name);
-          if(taken){
-            const done = !!taken.endAt;
-            return `<button class="store-chip taken" disabled>${s.name}<span class="taken-label ${done ? "done" : ""}">${done ? "완료" : "등록됨"}</span></button>`;
+          if(activeEntry(s.name)){
+            return `<button class="store-chip taken" disabled>${s.name}<span class="taken-label">등록됨</span></button>`;
           }
-          return `<button class="store-chip ${form.stores.includes(s.name) ? "active" : ""}" data-store="${s.name}">${s.name}</button>`;
+          const nth = completedCountToday(s.name) + 1;
+          return `<button class="store-chip ${form.stores.includes(s.name) ? "active" : ""}" data-store="${s.name}">${s.name}${nth > 1 ? `<span class="nth-label">${nth}차</span>` : ""}</button>`;
         }).join("")}
       </div>
     </div>
@@ -423,18 +424,31 @@ function renderStep1(){
   `;
 }
 
-// 오늘 이미 등록된(다른 기사가 먼저 시작했을 수 있는) 지점 — 동시에 여러 기사가
-// 같은 지점을 중복 등록하는 것을 막기 위해 선택 화면에서 제외한다.
-function takenBy(storeName){
-  return entries.find(e => e.store === storeName) || null;
+// 오늘 그 지점으로 이미 나가서 아직 완료되지 않은 건 — 동시에 여러 기사가
+// 같은 지점을 중복 등록하는 것을 막기 위해 선택 화면에서 제외한다. 완료된
+// 건은 여기 안 걸린다 — 같은 지점이 하루에 2번 이상 배차되는 경우(특히
+// 수도권)가 실제로 있어서, 1차가 완료된 뒤 2차 등록은 다시 허용해야 한다.
+function activeEntry(storeName){
+  return entries.find(e => e.store === storeName && !e.endAt) || null;
+}
+
+// 오늘 그 지점으로 이미 완료된 건수 — 0이면 이번이 1차, 1이면 이번이 2차...
+function completedCountToday(storeName){
+  return entries.filter(e => e.store === storeName && e.endAt).length;
 }
 
 function isAllRegionSelected(){
-  const selectable = STORE_DEFS.filter(s => s.region === form.region && !takenBy(s.name)).map(s => s.name);
+  const selectable = STORE_DEFS.filter(s => s.region === form.region && !activeEntry(s.name)).map(s => s.name);
   return selectable.length > 0 && selectable.every(n => form.stores.includes(n));
 }
 
 function renderStep2(){
+  // 선택된 지점 각각의 "이번이 몇 차인지"를 오늘 완료된 건수로 계산한다.
+  // 선택된 지점이 전부 같은 차수(예: 전부 2차)면 버튼 문구에도 반영하고,
+  // 섞여 있으면(1차+2차 등) 버튼은 기본 문구로 두고 칩에 개별 표시만 한다.
+  const nths = form.stores.map(name => completedCountToday(name) + 1);
+  const uniformNth = nths.every(n => n === nths[0]) ? nths[0] : null;
+  const startLabel = saving ? "등록 중..." : (uniformNth > 1 ? `${uniformNth}차 운송시작` : "운송시작");
   return `
     <div class="step-label">2 / 2</div>
     <h2>운송을 시작하시겠습니까?</h2>
@@ -444,12 +458,12 @@ function renderStep2(){
         <span class="confirm-count">${form.stores.length}개 지점</span>
       </div>
       <div class="confirm-chips">
-        ${form.stores.map(name => `<span class="confirm-chip">${name}</span>`).join("")}
+        ${form.stores.map((name, i) => `<span class="confirm-chip">${name}${nths[i] > 1 ? ` <span class="nth-label">${nths[i]}차</span>` : ""}</span>`).join("")}
       </div>
     </div>
     <div class="action-row">
       <button class="btn secondary" id="prevBtn">이전</button>
-      <button class="btn primary" id="startNowBtn" ${saving ? "disabled" : ""}>${iconStart(16)}${saving ? "등록 중..." : "운송시작"}</button>
+      <button class="btn primary" id="startNowBtn" ${saving ? "disabled" : ""}>${iconStart(16)}${startLabel}</button>
     </div>
   `;
 }
@@ -458,12 +472,14 @@ function renderStep2(){
 // 받는 e는 항상 진행중 상태이다.
 function renderEntry(e){
   const region = e.region || (storeByName(e.store) || {}).region || "";
+  const nth = completedCountToday(e.store) + 1;
   return `
     <div class="card">
       <div class="card-top">
         <div class="ct-left">
           <span class="status-dot going"></span>
           <span class="ct-name">${escapeHtml(e.store)}</span>
+          ${nth > 1 ? `<span class="nth-label">${nth}차</span>` : ""}
         </div>
         <span class="badge ${region === "수도권" ? "direct" : "hub"}">${escapeHtml(region)}</span>
       </div>
@@ -514,7 +530,7 @@ function wire(){
     const selectAllBtn = document.getElementById("selectAllBtn");
     if(selectAllBtn){
       selectAllBtn.addEventListener("click", () => {
-        const selectable = STORE_DEFS.filter(s => s.region === form.region && !takenBy(s.name)).map(s => s.name);
+        const selectable = STORE_DEFS.filter(s => s.region === form.region && !activeEntry(s.name)).map(s => s.name);
         form.stores = isAllRegionSelected() ? [] : selectable.slice();
         render();
       });
