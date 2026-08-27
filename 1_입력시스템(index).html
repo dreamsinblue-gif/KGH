@@ -324,7 +324,13 @@ async function createEntryFirestore(store, region){
     });
     return;
   }
-  await db.collection(COLLECTION).add({
+  // 문서 ID를 `${date}_${store}`로 고정한다 — firestore.rules의 create 규칙이
+  // 이 형식만 허용하므로(스팸 방지 + 동시등록 레이스 컨디션 차단, 규칙 파일
+  // 주석 참고) 여기도 같은 형식으로 맞춰야 한다. `.set()`을 쓰지만 문서가 이미
+  // 있으면(=오늘 그 지점이 이미 등록됨) 규칙이 update로 평가해 거부하므로,
+  // `.add()`였을 때와 달리 이 호출 자체가 "이 지점이 오늘 처음 등록되는 것"을
+  // 서버 쪽에서도 보장한다.
+  await db.collection(COLLECTION).doc(`${DATE}_${store}`).set({
     store, region, date: DATE,
     startAt: firebase.firestore.Timestamp.now(),
     endAt: null,

@@ -59,19 +59,34 @@ service cloud.firestore {
 
     match /deliveries/{deliveryId} {
       // 기사 앱(index.html)과 관리자 로그인 상태 모두 create 가능 (기존 동작 유지).
-      // 문서 ID는 index.html이 `.add()`로 자동 생성하므로 항상 영숫자/-_인데,
-      // 규칙에서도 이를 강제해 `data-complete="${e.id}"` 같은 HTML 속성에 그대로
-      // 꽂아 넣는 곳(index.html)이 속성-이탈 방식의 XSS에 노출되지 않게 한다.
+      // 문서 ID는 더 이상 `.add()`가 만드는 임의 문자열이 아니라 index.html이
+      // `${date}_${store}`로 직접 지정한다 (스팸 방지 겸 동시등록 레이스 컨디션
+      // 차단 — 아래 설명). ID가 이미 검증된 date/store 필드를 그대로 이어붙인
+      // 값이라, 별도 문자 화이트리스트 없이도 `<`/`"` 같은 문자가 절대 섞일 수
+      // 없다 (store는 storeRegion() 키 중 하나로 고정되고, date는 YYYY-MM-DD
+      // 형식만 통과하므로) — `data-complete="${e.id}"`(index.html)처럼 HTML
+      // 속성에 그대로 꽂아 넣는 곳이 속성-이탈 XSS에 노출되지 않는 이유가 여기 있다.
+      //
+      // 이렇게 ID를 `지점+오늘날짜`로 고정하면 Firestore 자체가 "하루에 지점당
+      // 문서 1개"를 강제한다 — 같은 ID로 두 번째 create를 시도하면 문서가 이미
+      // 있으므로 create가 아니라 update로 평가되고, update 규칙은 endAt 하나만
+      // 바꾸는 것만 허용하므로 store/region/date/startAt을 다시 채우려는 시도는
+      // 자동으로 거부된다. 부작용 두 가지: (1) 스팸으로 만들 수 있는 문서 수가
+      // 하루 최대 36건(전체 지점 수)으로 물리적으로 묶인다 — 이 앱 규모에서는
+      // 사실상 스팸이 의미 없어지는 수준. (2) 두 기사가 같은 지점을 동시에
+      // 등록하는 레이스 컨디션(기존에 클라이언트 쪽 takenBy()에만 의존하던 문제,
+      // CLAUDE.md "Concurrent-driver duplicate guard" 참고)도 서버 쪽에서 막힌다.
+      //
       // 필드 자체도 실제 앱이 만드는 모양 그대로만 허용한다: 정해진 36개 지점 중
       // 하나(+region 일치), 오늘 날짜, startAt/createdAt은 진짜 타임스탬프,
       // endAt은 생성 시 항상 null — 여기서 벗어나는 값(엉뚱한 문자열, 미래/과거
       // 날짜, 임의 필드 추가 등)은 전부 거부한다.
       allow create: if request.auth != null &&
-        deliveryId.matches('[A-Za-z0-9_-]+') &&
         request.resource.data.keys().hasOnly(['store', 'region', 'date', 'startAt', 'endAt', 'createdAt']) &&
         request.resource.data.store in storeRegion() &&
         request.resource.data.region == storeRegion()[request.resource.data.store] &&
         isToday(request.resource.data.date) &&
+        deliveryId == request.resource.data.date + '_' + request.resource.data.store &&
         request.resource.data.startAt is timestamp &&
         request.resource.data.endAt == null &&
         request.resource.data.createdAt is timestamp;
