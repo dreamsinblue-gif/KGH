@@ -108,6 +108,7 @@ body{
 .status-dot.going{background:var(--amber);}
 .status-dot.done{background:var(--green);}
 .row .name{font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.nth-label{font-family:'JetBrains Mono',monospace; font-size:9px; font-weight:700; color:var(--amber);}
 .row .time{font-size:12px; font-family:'JetBrains Mono',monospace; color:var(--gray);}
 .row .time.done{color:var(--green); font-weight:700;}
 .row .time.going{color:var(--amber); font-weight:700;}
@@ -309,8 +310,21 @@ function subscribeStats(){
     );
 }
 
-function findEntry(store){
-  return dashboardEntries.find(e => e.store === store) || null;
+// 지점 하나가 오늘 여러 번 배차될 수 있어(1차 완료 후 2차 등) 그 지점의
+// 오늘자 항목을 전부 시간순으로 반환한다 — 대시보드가 각각을 별도 행으로
+// 보여주기 위함. 요약 카운트(대기/운송중/완료)는 지점 단위라 storeStatus()를
+// 따로 쓴다: 진행 중인 항목이 하나라도 있으면 "운송중", 없고 완료 항목만
+// 있으면 "완료", 아무 항목도 없으면 "대기".
+function findEntries(store){
+  return dashboardEntries
+    .filter(e => e.store === store)
+    .sort((a, b) => (a.startAt ? a.startAt.getTime() : 0) - (b.startAt ? b.startAt.getTime() : 0));
+}
+
+function storeStatus(store){
+  const list = findEntries(store);
+  if(!list.length) return "wait";
+  return list.some(e => !e.endAt) ? "going" : "done";
 }
 
 function elapsedMinutes(entry){
@@ -373,9 +387,9 @@ function renderDashboard(){
   const total = ALL_STORES.length;
   let waitCount = 0, goingCount = 0, doneCount = 0;
   ALL_STORES.forEach(name => {
-    const e = findEntry(name);
-    if(!e) waitCount++;
-    else if(e.endAt) doneCount++;
+    const status = storeStatus(name);
+    if(status === "wait") waitCount++;
+    else if(status === "done") doneCount++;
     else goingCount++;
   });
 
@@ -421,8 +435,26 @@ function renderDashboard(){
   `;
 }
 
+function renderStoreRow(name, e, nth){
+  const status = !e ? "wait" : (e.endAt ? "done" : "going");
+  const startTxt = e && e.startAt ? fmtTime(e.startAt) : "--:--";
+  const endTxt = e && e.endAt ? fmtTime(e.endAt) : "--:--";
+  const elapsed = e ? elapsedMinutes(e) : null;
+  const delayed = e ? isDelayed(e) : null;
+  const elapsedTxt = elapsed === null ? "" : (elapsed + "분" + (status === "going" ? "째" : ""));
+  return `
+    <div class="row">
+      <span class="status-dot ${status}"></span>
+      <span class="name">${name}${nth ? ` <span class="nth-label">${nth}차</span>` : ""}</span>
+      <span class="time ${status === "wait" ? "" : "going"}">${startTxt}</span>
+      <span class="time ${status === "done" ? "done" : ""}">${endTxt}</span>
+      <span class="time" style="white-space:nowrap;">${elapsedTxt}${delayed ? `<span class="badge delay">지연</span>` : ""}</span>
+    </div>
+  `;
+}
+
 function regionCard(label, storeList, isRural){
-  const doneN = storeList.filter(n => { const e = findEntry(n); return e && e.endAt; }).length;
+  const doneN = storeList.filter(n => storeStatus(n) === "done").length;
   return `
     <div class="region-card">
       <div class="region-head">
@@ -437,22 +469,12 @@ function regionCard(label, storeList, isRural){
         <span>소요</span>
       </div>
       ${storeList.map(name => {
-        const e = findEntry(name);
-        const status = !e ? "wait" : (e.endAt ? "done" : "going");
-        const startTxt = e && e.startAt ? fmtTime(e.startAt) : "--:--";
-        const endTxt = e && e.endAt ? fmtTime(e.endAt) : "--:--";
-        const elapsed = e ? elapsedMinutes(e) : null;
-        const delayed = e ? isDelayed(e) : null;
-        const elapsedTxt = elapsed === null ? "" : (elapsed + "분" + (status === "going" ? "째" : ""));
-        return `
-          <div class="row">
-            <span class="status-dot ${status}"></span>
-            <span class="name">${name}</span>
-            <span class="time ${status === "wait" ? "" : "going"}">${startTxt}</span>
-            <span class="time ${status === "done" ? "done" : ""}">${endTxt}</span>
-            <span class="time" style="white-space:nowrap;">${elapsedTxt}${delayed ? `<span class="badge delay">지연</span>` : ""}</span>
-          </div>
-        `;
+        // 오늘 그 지점의 항목을 전부(1차/2차...) 시간순으로 각각 별도 행으로
+        // 보여준다 — 하나로 합쳐서 보여주면 이미 완료된 1차가 진행 중인 2차에
+        // 가려져 안 보이는 문제가 있었다.
+        const list = findEntries(name);
+        if(!list.length) return renderStoreRow(name, null, null);
+        return list.map((e, i) => renderStoreRow(name, e, list.length > 1 ? i + 1 : null)).join("");
       }).join("")}
     </div>
   `;
