@@ -199,6 +199,13 @@ const REGIONS = ["수도권","지방"];
 
 function storeByName(name){ return STORE_DEFS.find(s => s.name === name); }
 
+// firestore.rules now pins store/region to the known 36 names, so this is
+// defense-in-depth (not the only guard) against store/region ever reaching
+// innerHTML as anything other than plain text.
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
 function iconStart(size){
   size = size || 13;
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="8" width="13" height="8"></rect><path d="M14 11h4l3 3v2h-7z"></path><circle cx="6" cy="18" r="1.8"></circle><circle cx="17.5" cy="18" r="1.8"></circle></svg>`;
@@ -456,9 +463,9 @@ function renderEntry(e){
       <div class="card-top">
         <div class="ct-left">
           <span class="status-dot going"></span>
-          <span class="ct-name">${e.store}</span>
+          <span class="ct-name">${escapeHtml(e.store)}</span>
         </div>
-        <span class="badge ${region === "수도권" ? "direct" : "hub"}">${region}</span>
+        <span class="badge ${region === "수도권" ? "direct" : "hub"}">${escapeHtml(region)}</span>
       </div>
       <div class="flow-row">
         <div class="flow-side">
@@ -474,7 +481,7 @@ function renderEntry(e){
         </div>
       </div>
       <div class="action-row">
-        <button class="btn primary" data-complete="${e.id}" ${completingIds.has(e.id) ? "disabled" : ""}>${completingIds.has(e.id) ? "기록 중..." : iconDone() + "운송완료"}</button>
+        <button class="btn primary" data-complete="${escapeHtml(e.id)}" ${completingIds.has(e.id) ? "disabled" : ""}>${completingIds.has(e.id) ? "기록 중..." : iconDone() + "운송완료"}</button>
       </div>
     </div>
   `;

@@ -28,9 +28,63 @@ service cloud.firestore {
         (kst.day() < 10 ? '0' : '') + string(kst.day());
     }
 
+    // Third copy of the 36-store list (see "Store list duplication" in
+    // CLAUDE.md — index.html's STORE_DEFS and admin.html's METRO/RURAL are
+    // the other two; all three must stay in sync). This one exists purely
+    // for write validation: `request.auth != null` alone used to let ANY
+    // signed-in client — including the anonymous session index.html grants
+    // every visitor on load — write arbitrary values for `store`/`region`
+    // into a `deliveries` document. Since both apps interpolate `store`
+    // (index.html) into innerHTML unescaped, an attacker who knew that could
+    // write an HTML/script payload as `store` directly via the Firestore SDK
+    // (bypassing the UI entirely) and get it to execute in every driver's
+    // browser for the rest of the day. Pinning `store` to this exact map,
+    // and requiring `region` to match its value, closes that off at the one
+    // real security boundary this app has (there's no backend server).
+    function storeRegion() {
+      return {
+        "광화문점": "수도권", "이화여대교내서점": "수도권", "인천점": "수도권",
+        "일산점": "수도권", "합정점": "수도권", "송도점": "수도권",
+        "건대스타시티점": "수도권", "은평점": "수도권", "청량리점": "수도권",
+        "동대문점": "수도권", "수유점": "수도권", "강남점": "수도권",
+        "서울대교내서점": "수도권", "잠실점": "수도권", "영등포점": "수도권",
+        "판교점": "수도권", "목동점": "수도권", "광교점": "수도권",
+        "평촌점": "수도권", "천호점": "수도권", "분당점": "수도권",
+        "가든파이브점": "수도권", "원그로브점": "수도권", "수원점": "수도권",
+        "대구점": "지방", "천안점": "지방", "부산점": "지방", "창원점": "지방",
+        "울산점": "지방", "대전점": "지방", "센텀시티점": "지방", "세종점": "지방",
+        "전주점": "지방", "경성대부경대점": "지방", "칠곡점": "지방", "광주상무점": "지방"
+      };
+    }
+
     match /deliveries/{deliveryId} {
-      // 기사 앱(index.html)과 관리자 로그인 상태 모두 create/update 가능 (기존 동작 유지)
-      allow create, update: if request.auth != null;
+      // 기사 앱(index.html)과 관리자 로그인 상태 모두 create 가능 (기존 동작 유지).
+      // 문서 ID는 index.html이 `.add()`로 자동 생성하므로 항상 영숫자/-_인데,
+      // 규칙에서도 이를 강제해 `data-complete="${e.id}"` 같은 HTML 속성에 그대로
+      // 꽂아 넣는 곳(index.html)이 속성-이탈 방식의 XSS에 노출되지 않게 한다.
+      // 필드 자체도 실제 앱이 만드는 모양 그대로만 허용한다: 정해진 36개 지점 중
+      // 하나(+region 일치), 오늘 날짜, startAt/createdAt은 진짜 타임스탬프,
+      // endAt은 생성 시 항상 null — 여기서 벗어나는 값(엉뚱한 문자열, 미래/과거
+      // 날짜, 임의 필드 추가 등)은 전부 거부한다.
+      allow create: if request.auth != null &&
+        deliveryId.matches('[A-Za-z0-9_-]+') &&
+        request.resource.data.keys().hasOnly(['store', 'region', 'date', 'startAt', 'endAt', 'createdAt']) &&
+        request.resource.data.store in storeRegion() &&
+        request.resource.data.region == storeRegion()[request.resource.data.store] &&
+        isToday(request.resource.data.date) &&
+        request.resource.data.startAt is timestamp &&
+        request.resource.data.endAt == null &&
+        request.resource.data.createdAt is timestamp;
+
+      // update는 "운송완료" 한 가지 동작만 허용한다: 아직 endAt이 없는 문서에
+      // endAt(타임스탬프)만 채워 넣는 것. store/region/date/startAt/createdAt은
+      // 생성 이후 절대 못 바꾸고, 이미 완료된(endAt이 있는) 문서는 재수정도 못한다
+      // — index.html/admin.html 어느 쪽에도 원래 되돌리기(undo) 기능이 없는
+      // 설계와 맞물려, 완료 기록을 조용히 덮어쓰는 경로 자체를 막는다.
+      allow update: if request.auth != null &&
+        resource.data.endAt == null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['endAt']) &&
+        request.resource.data.endAt is timestamp;
 
       // list(쿼리) 읽기:
       //  - 관리자(ADMIN_EMAIL로 로그인)는 전체 기간 조회 가능 (30일 통계용)
